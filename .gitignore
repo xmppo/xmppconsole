@@ -29,6 +29,7 @@
 *.dylib
 
 # Executables
+xmppconsole
 *.exe
 *.out
 *.app
@@ -50,3 +51,22 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Autotools
+Makefile
+Makefile.in
+configure
+install-sh
+missing
+compile
+aclocal.m4
+config.log
+config.status
+config.guess
+config.sub
+depcomp
+autom4te.cache
+libtool
+ltmain.sh
+.dirstamp
+.deps
