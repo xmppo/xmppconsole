@@ -24,7 +24,8 @@
  * Main purpose of the tool is to study XEPs and debug servers behavior.
  *
  * For GTK UI, main priority is given to the GTK main loop, libstrophe
- * loop is executed in a timer callback.
+ * loop is executed in a timer callback. This is done in orer to improve
+ * responsiveness of the UI.
  */
 
 #include <assert.h>
@@ -32,6 +33,12 @@
 #include <gtksourceview/gtksource.h>
 #include <stdio.h>
 #include <strophe.h>
+
+struct _xmppconsole_ui {
+	GtkWidget *window;
+	GtkWidget *entry;
+};
+typedef struct _xmppconsole_ui xmppconsole_ui_t;
 
 #define TITLE_TEXT "XMPP Console"
 #define EVENT_LOOP_TIMEOUT 10
@@ -52,19 +59,23 @@ static void conn_handler(xmpp_conn_t         *conn,
 			 xmpp_stream_error_t *stream_error,
 			 void                *userdata)
 {
-	GtkWidget *window = userdata;
+	xmppconsole_ui_t *ui = userdata;
 
 	if (status == XMPP_CONN_CONNECT) {
-		update_title(window, TITLE_TEXT " (Connected)");
+		update_title(ui->window, TITLE_TEXT " (Connected)");
 		connected = TRUE;
 		if (gtk_done)
 			xmpp_disconnect(conn);
+		else
+			gtk_widget_set_sensitive(ui->entry, TRUE);
 	} else {
-		update_title(window, TITLE_TEXT " (Disconnected)");
+		update_title(ui->window, TITLE_TEXT " (Disconnected)");
 		connected = FALSE;
 		xmpp_done = TRUE;
 		if (gtk_done)
 			gtk_main_quit();
+		else
+			gtk_widget_set_sensitive(ui->entry, FALSE);
 	}
 }
 
@@ -139,6 +150,7 @@ int main(int argc, char **argv)
 	GtkSourceLanguageManager *lm;
 	GtkSourceLanguage *lang;
 
+	xmppconsole_ui_t ui;
 	xmpp_ctx_t  *ctx;
 	xmpp_conn_t *conn;
 	xmpp_log_t log;
@@ -174,6 +186,7 @@ int main(int argc, char **argv)
 	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_WORD_CHAR);
 
 	entry = gtk_entry_new();
+	gtk_widget_set_sensitive(entry, FALSE);
 
 	scrolled = gtk_scrolled_window_new(NULL, NULL);
 	gtk_widget_set_hexpand(scrolled, FALSE);
@@ -186,6 +199,8 @@ int main(int argc, char **argv)
 	gtk_container_add(GTK_CONTAINER(window), box);
 	gtk_widget_show_all(window);
 
+	ui.window = window;
+	ui.entry = entry;
 	log = (xmpp_log_t){
 		.handler = &xmppconsole_log_cb,
 		.userdata = buffer,
@@ -197,7 +212,7 @@ int main(int argc, char **argv)
 	xmpp_conn_set_flags(conn, XMPP_CONN_FLAG_MANDATORY_TLS);
 	xmpp_conn_set_jid(conn, jid);
 	xmpp_conn_set_pass(conn, pass);
-	xmpp_connect_client(conn, NULL, 0, conn_handler, window);
+	xmpp_connect_client(conn, NULL, 0, conn_handler, &ui);
 
 	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gtk_quit_cb), conn);
 	g_signal_connect(G_OBJECT(entry), "activate", G_CALLBACK(send_buffer_cb), conn);
