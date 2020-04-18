@@ -24,139 +24,89 @@
  * Main purpose of the tool is to study XEPs and debug servers behavior.
  *
  * For GTK UI, main priority is given to the GTK main loop, libstrophe
- * loop is executed in a timer callback. This is done in orer to improve
+ * loop is executed in a timer callback. This is done in order to improve
  * responsiveness of the UI.
  */
 
+#include "ui.h"
+#include "xmpp.h"
+
 #include <assert.h>
-#include <gtk/gtk.h>
-#include <gtksourceview/gtksource.h>
 #include <stdio.h>
+#include <string.h>
 #include <strophe.h>
 
-struct _xmppconsole_ui {
-	GtkWidget *window;
-	GtkWidget *entry;
-};
-typedef struct _xmppconsole_ui xmppconsole_ui_t;
+bool connected = false;
 
-#define TITLE_TEXT "XMPP Console"
-#define EVENT_LOOP_TIMEOUT 10
-
-gboolean gtk_done = FALSE;
-gboolean xmpp_done = FALSE;
-gboolean connected = FALSE;
-
-static void update_title(GtkWidget *window, const gchar *title)
+static void xc_conn_handler(xmpp_conn_t         *conn,
+			    xmpp_conn_event_t    status,
+			    int                  error,
+			    xmpp_stream_error_t *stream_error,
+			    void                *userdata)
 {
-	if (!gtk_done)
-		gtk_window_set_title(GTK_WINDOW(window), title);
-}
-
-static void conn_handler(xmpp_conn_t         *conn,
-			 xmpp_conn_event_t    status,
-			 int                  error,
-			 xmpp_stream_error_t *stream_error,
-			 void                *userdata)
-{
-	xmppconsole_ui_t *ui = userdata;
+	struct xc_ctx *ctx = userdata;
 
 	if (status == XMPP_CONN_CONNECT) {
-		update_title(ui->window, TITLE_TEXT " (Connected)");
-		connected = TRUE;
-		if (gtk_done)
+		xc_ui_connected(ctx->c_ui);
+		connected = true;
+		if (xc_ui_is_done(ctx->c_ui))
 			xmpp_disconnect(conn);
-		else
-			gtk_widget_set_sensitive(ui->entry, TRUE);
 	} else {
-		update_title(ui->window, TITLE_TEXT " (Disconnected)");
-		connected = FALSE;
-		xmpp_done = TRUE;
-		if (gtk_done)
-			gtk_main_quit();
-		else
-			gtk_widget_set_sensitive(ui->entry, FALSE);
+		xc_ui_disconnected(ctx->c_ui);
+		connected = false;
+		if (xc_ui_is_done(ctx->c_ui))
+			xc_ui_quit(ctx->c_ui);
 	}
 }
 
-static gboolean should_display(const char *msg)
+static bool should_display(const char *msg)
 {
+	/* Display only sent and received stanzas. */
 	return strncmp(msg, "SENT:", 5) == 0 ||
 	       strncmp(msg, "RECV:", 5) == 0;
 }
 
-static void xmppconsole_log_cb(void            *userdata,
-			       xmpp_log_level_t level,
-			       const char      *area,
-			       const char      *msg)
+static void xc_log_cb(void             *userdata,
+		      xmpp_log_level_t  level,
+		      const char       *area,
+		      const char       *msg)
 {
-	GtkSourceBuffer *buffer = userdata;
-	GtkTextIter      end;
-	GString         *text;
+	struct xc_ctx *ctx = userdata;
 
-	if (!gtk_done && should_display(msg)) {
-		text = g_string_new(msg);
-		g_string_append(text, "\n");
-		gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffer), &end);
-		gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffer), &end,
-				       text->str, -1);
-		g_string_free(text, TRUE);
-	}
+	if (should_display(msg))
+		xc_ui_print(ctx->c_ui, msg);
+
+	/* XXX Debug output */
 	printf("[%d] %s: %s\n", level, area, msg);
 }
 
-static gboolean gtk_quit_cb(GObject *obj, gpointer data)
+void xc_send(struct xc_ctx *ctx, const char *msg)
 {
-	xmpp_conn_t *conn = data;
+	xmpp_send_raw_string(ctx->c_conn, "%s", msg);
+}
 
-	gtk_done = TRUE;
-	if (xmpp_done)
-		gtk_main_quit();
+void xc_quit(struct xc_ctx *ctx)
+{
 	if (connected)
-		xmpp_disconnect(conn);
-
-	return FALSE;
-}
-
-static gboolean send_buffer_cb(GObject *obj, gpointer data)
-{
-	xmpp_conn_t *conn = data;
-	const gchar *text = gtk_entry_get_text(GTK_ENTRY(obj));
-
-	xmpp_send_raw_string(conn, "%s", text);
-	gtk_entry_set_text(GTK_ENTRY(obj), "");
-
-	return TRUE;
-}
-
-static gboolean timed_cb(gpointer data)
-{
-	xmpp_ctx_t *ctx = data;
-
-	if (!xmpp_done) {
-		xmpp_run_once(ctx, gtk_done ? EVENT_LOOP_TIMEOUT : 1);
-	}
-	return TRUE;
+		xmpp_disconnect(ctx->c_conn);
+	else
+		xc_ui_quit(ctx->c_ui);
 }
 
 int main(int argc, char **argv)
 {
-	GtkWidget *window;
-	GtkWidget *scrolled;
-	GtkWidget *view;
-	GtkWidget *entry;
-	GtkWidget *box;
-	GtkSourceBuffer *buffer;
-	GtkSourceLanguageManager *lm;
-	GtkSourceLanguage *lang;
+	struct xc_ui   ui;
+	struct xc_ctx  ctx;
+	xmpp_log_t     log;
+	xmpp_ctx_t    *xmpp_ctx;
+	xmpp_conn_t   *xmpp_conn;
+	const char    *jid;
+	const char    *pass;
+	int            rc;
 
-	xmppconsole_ui_t ui;
-	xmpp_ctx_t  *ctx;
-	xmpp_conn_t *conn;
-	xmpp_log_t log;
-	const char *jid;
-	const char *pass;
-
+	/*
+	 * TODO Let user type JID/password in UI.
+	 */
 	if (argc < 3) {
 		printf("Usage: xmppconsole <jid> <password>\n");
 		return 1;
@@ -164,65 +114,37 @@ int main(int argc, char **argv)
 	jid = argv[1];
 	pass = argv[2];
 
-	xmpp_initialize();
-	gtk_init(&argc, &argv);
+	rc = xc_ui_init(&ui, "gtk");
+	assert(rc == 0);
 
-	lm = gtk_source_language_manager_get_default();
-	lang = gtk_source_language_manager_get_language(lm, "xml");
-
-	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	update_title(window, TITLE_TEXT " (Connecting...)");
-	gtk_window_set_default_size(GTK_WINDOW(window), 1000, 500);
-
-	buffer = gtk_source_buffer_new(NULL);
-	if (lang != NULL) {
-		gtk_source_buffer_set_language(buffer, lang);
-		gtk_source_buffer_set_highlight_syntax(buffer, TRUE);
-	}
-	view = gtk_source_view_new_with_buffer(buffer);
-	gtk_source_view_set_show_line_numbers(GTK_SOURCE_VIEW(view), TRUE);
-	gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
-	gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
-	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_WORD_CHAR);
-
-	entry = gtk_entry_new();
-	gtk_widget_set_sensitive(entry, FALSE);
-
-	scrolled = gtk_scrolled_window_new(NULL, NULL);
-	gtk_widget_set_hexpand(scrolled, FALSE);
-	gtk_widget_set_vexpand(scrolled, TRUE);
-
-	box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-	gtk_box_pack_start(GTK_BOX(box), scrolled, TRUE, TRUE, 0);
-	gtk_box_pack_end(GTK_BOX(box), entry, FALSE, FALSE, 0);
-	gtk_container_add(GTK_CONTAINER(scrolled), view);
-	gtk_container_add(GTK_CONTAINER(window), box);
-	gtk_widget_show_all(window);
-
-	ui.window = window;
-	ui.entry = entry;
 	log = (xmpp_log_t){
-		.handler = &xmppconsole_log_cb,
-		.userdata = buffer,
+		.handler = &xc_log_cb,
+		.userdata = &ctx,
 	};
-	ctx = xmpp_ctx_new(NULL, &log);
-	assert(ctx != NULL);
-	conn = xmpp_conn_new(ctx);
-	assert(conn != NULL);
-	xmpp_conn_set_flags(conn, XMPP_CONN_FLAG_MANDATORY_TLS);
-	xmpp_conn_set_jid(conn, jid);
-	xmpp_conn_set_pass(conn, pass);
-	xmpp_connect_client(conn, NULL, 0, conn_handler, &ui);
+	xmpp_initialize();
+	xmpp_ctx = xmpp_ctx_new(NULL, &log);
+	assert(xmpp_ctx != NULL);
+	xmpp_conn = xmpp_conn_new(xmpp_ctx);
+	assert(xmpp_conn != NULL);
+	xmpp_conn_set_flags(xmpp_conn, XMPP_CONN_FLAG_MANDATORY_TLS);
+	xmpp_conn_set_jid(xmpp_conn, jid);
+	xmpp_conn_set_pass(xmpp_conn, pass);
+	ctx.c_ctx  = xmpp_ctx;
+	ctx.c_conn = xmpp_conn;
+	ctx.c_ui   = &ui;
 
-	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gtk_quit_cb), conn);
-	g_signal_connect(G_OBJECT(entry), "activate", G_CALLBACK(send_buffer_cb), conn);
-	g_timeout_add(EVENT_LOOP_TIMEOUT, timed_cb, ctx);
+	xc_ui_ctx_set(&ui, &ctx);
+	xc_ui_connecting(&ui);
+	xmpp_connect_client(xmpp_conn, NULL, 0, xc_conn_handler, &ctx);
 
-	gtk_main();
+	/* Run main event loops */
+	xc_ui_run(&ui);
 
-	xmpp_conn_release(conn);
-	xmpp_ctx_free(ctx);
+	xmpp_conn_release(xmpp_conn);
+	xmpp_ctx_free(xmpp_ctx);
 	xmpp_shutdown();
+
+	xc_ui_fini(&ui);
 
 	return 0;
 }
