@@ -31,6 +31,6 @@ LIBS="$gtksourceview_LIBS $LIBS"
 CFLAGS="$CFLAGS $gtksourceview_CFLAGS"
 
 # Debug cflags
-CFLAGS="$CFLAGS -O0 -g3 -Wall -Werror"
+CFLAGS="$CFLAGS -O0 -g3 -Wall"
 
 AC_OUTPUT
