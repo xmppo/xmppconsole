@@ -37,5 +37,6 @@ from sources using autotools.
 git clone https://github.com/pasis/xmppconsole.git
 cd xmppconsole
 ./autogen.sh
-./configure.sh
+./configure
+make
 ```
