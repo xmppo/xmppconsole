@@ -32,11 +32,13 @@
 #include "xmpp.h"
 
 #include <assert.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <strophe.h>
 
 static bool connected = false;
+static bool signalled = false;
 static bool verbose_level = false;
 
 static void xc_conn_handler(xmpp_conn_t         *conn,
@@ -55,7 +57,7 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 	} else {
 		xc_ui_disconnected(ctx->c_ui);
 		connected = false;
-		if (xc_ui_is_done(ctx->c_ui))
+		if (signalled || xc_ui_is_done(ctx->c_ui))
 			xc_ui_quit(ctx->c_ui);
 	}
 }
@@ -94,6 +96,19 @@ void xc_quit(struct xc_ctx *ctx)
 	else
 		xc_ui_quit(ctx->c_ui);
 }
+
+/* Global pointer for signal handler. */
+static struct xc_ctx *g_ctx;
+
+static void xc_sighandler(int signo)
+{
+	signalled = true;
+	xc_quit(g_ctx);
+}
+
+static struct sigaction xc_sigaction = {
+	.sa_handler = xc_sighandler,
+};
 
 int main(int argc, char **argv)
 {
@@ -138,6 +153,13 @@ int main(int argc, char **argv)
 	xc_ui_ctx_set(&ui, &ctx);
 	xc_ui_connecting(&ui);
 	xmpp_connect_client(xmpp_conn, NULL, 0, xc_conn_handler, &ctx);
+
+	g_ctx = &ctx;
+	rc = sigaction(SIGTERM, &xc_sigaction, NULL)
+	  ?: sigaction(SIGINT, &xc_sigaction, NULL);
+	assert(rc == 0);
+	rc = signal(SIGPIPE, SIG_IGN) == SIG_ERR ? -1 : 0;
+	assert(rc == 0);
 
 	/* Run main event loops */
 	xc_ui_run(&ui);
