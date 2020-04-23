@@ -21,15 +21,30 @@
 #include "xmpp.h"
 
 /* Headers for UI implementations */
+#include "ui_console.h"
 #include "ui_gtk.h"
 
-int xc_ui_init(struct xc_ui *ui, const char *hint)
-{
-	/* We don't support multiple UIs for now. */
-	(void)hint;
+#include <string.h>
 
-	ui->ui_ops = &xc_ui_ops_gtk;
-	return ui->ui_ops->uio_init(ui);
+int xc_ui_init(struct xc_ui *ui, xc_ui_type_t type)
+{
+	int rc = -1;
+
+	if (type == XC_UI_GTK || type == XC_UI_ANY) {
+		ui->ui_ops = &xc_ui_ops_gtk;
+		rc = ui->ui_ops->uio_init(ui);
+	}
+#ifdef HAVE_NCURSES
+	if (type == XC_UI_NCURSES || (type == XC_UI_ANY && rc != 0)) {
+		ui->ui_ops = &xc_ui_ops_ncurses;
+		rc = ui->ui_ops->uio_init(ui);
+	}
+#endif
+	if (type == XC_UI_CONSOLE || (type == XC_UI_ANY && rc != 0)) {
+		ui->ui_ops = &xc_ui_ops_console;
+		rc = ui->ui_ops->uio_init(ui);
+	}
+	return rc;
 }
 
 void xc_ui_fini(struct xc_ui *ui)

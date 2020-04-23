@@ -35,6 +35,13 @@ typedef enum {
 	XC_UI_DISCONNECTED,
 } xc_ui_state_t;
 
+typedef enum {
+	XC_UI_ANY,
+	XC_UI_GTK,
+	XC_UI_NCURSES,
+	XC_UI_CONSOLE,
+} xc_ui_type_t;
+
 struct xc_ui {
 	const char             *ui_name;
 	struct xc_ctx          *ui_ctx;
@@ -52,7 +59,7 @@ struct xc_ui_ops {
 	void (*uio_quit)(struct xc_ui *ui);
 };
 
-int  xc_ui_init(struct xc_ui *ui, const char *hint);
+int  xc_ui_init(struct xc_ui *ui, xc_ui_type_t type);
 void xc_ui_fini(struct xc_ui *ui);
 void xc_ui_ctx_set(struct xc_ui *ui, struct xc_ctx *ctx);
 void xc_ui_connecting(struct xc_ui *ui);

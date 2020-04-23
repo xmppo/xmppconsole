@@ -131,7 +131,7 @@ int main(int argc, char **argv)
 	jid = argv[1];
 	pass = argv[2];
 
-	rc = xc_ui_init(&ui, "gtk");
+	rc = xc_ui_init(&ui, XC_UI_ANY);
 	assert(rc == 0);
 
 	log = (xmpp_log_t){
