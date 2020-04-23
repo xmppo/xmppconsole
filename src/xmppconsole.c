@@ -36,7 +36,8 @@
 #include <string.h>
 #include <strophe.h>
 
-bool connected = false;
+static bool connected = false;
+static bool verbose_level = false;
 
 static void xc_conn_handler(xmpp_conn_t         *conn,
 			    xmpp_conn_event_t    status,
@@ -76,8 +77,9 @@ static void xc_log_cb(void             *userdata,
 	if (should_display(msg))
 		xc_ui_print(ctx->c_ui, msg);
 
-	/* XXX Debug output */
-	printf("[%d] %s: %s\n", level, area, msg);
+	/* Debug output */
+	if (verbose_level)
+		printf("[%d] %s: %s\n", level, area, msg);
 }
 
 void xc_send(struct xc_ctx *ctx, const char *msg)
