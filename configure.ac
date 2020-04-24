@@ -13,6 +13,20 @@ PKG_CHECK_MODULES([libstrophe], [libstrophe >= 0.9.0],
     ],
     [AC_MSG_ERROR([libstrophe is required])])
 
+PKG_CHECK_MODULES([ncursesw], [ncursesw],
+    [
+        LIBS="$ncursesw_LIBS $LIBS"
+        CFLAGS="$CFLAGS $ncursesw_CFLAGS"
+    ],
+    [AC_MSG_ERROR([ncursesw is required])])
+
+PKG_CHECK_MODULES([readline], [readline],
+    [
+        LIBS="$readline_LIBS $LIBS"
+        CFLAGS="$CFLAGS $readline_CFLAGS"
+    ],
+    [AC_MSG_ERROR([readline is required])])
+
 PKG_CHECK_MODULES([gtk], [gtk+-3.0],
     [
         LIBS="$gtk_LIBS $LIBS"

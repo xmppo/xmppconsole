@@ -6,12 +6,14 @@ xmppconsole_SOURCES = \
 	src/ui.c \
 	src/ui_console.c \
 	src/ui_gtk.c \
+	src/ui_ncurses.c \
 	src/xmppconsole.c
 
 xmppconsole_SOURCES += \
 	src/ui.h \
 	src/ui_console.h \
 	src/ui_gtk.h \
+	src/ui_ncurses.h \
 	src/xmpp.h
 
 xmppconsole_CFLAGS = $(AM_CFLAGS)

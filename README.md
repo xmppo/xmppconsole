@@ -6,8 +6,9 @@ xmppconsole - a simple tool for XMPP hackers.
 This tool sends raw XMPP stanzas over an XMPP connection and displays the XMPP
 stream. Main purpose is to study XEPs and debug servers implementation.
 
-The tool is under development, the finished version will support both GTK UI and
-ncurses UI.
+xmppconsole supports multiple UI modules: GTK, ncurses, console.
+
+The tool is under development.
 
 To try it out:
 ```

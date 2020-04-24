@@ -23,6 +23,7 @@
 /* Headers for UI implementations */
 #include "ui_console.h"
 #include "ui_gtk.h"
+#include "ui_ncurses.h"
 
 #include <string.h>
 
@@ -34,12 +35,10 @@ int xc_ui_init(struct xc_ui *ui, xc_ui_type_t type)
 		ui->ui_ops = &xc_ui_ops_gtk;
 		rc = ui->ui_ops->uio_init(ui);
 	}
-#ifdef HAVE_NCURSES
 	if (type == XC_UI_NCURSES || (type == XC_UI_ANY && rc != 0)) {
 		ui->ui_ops = &xc_ui_ops_ncurses;
 		rc = ui->ui_ops->uio_init(ui);
 	}
-#endif
 	if (type == XC_UI_CONSOLE || (type == XC_UI_ANY && rc != 0)) {
 		ui->ui_ops = &xc_ui_ops_console;
 		rc = ui->ui_ops->uio_init(ui);
