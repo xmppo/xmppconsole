@@ -19,11 +19,21 @@ Where the first argument is your JID and the second is your password.
 Build requirements
 ------------------
 
-xmppconsole depends on 3 libraries:
+xmppconsole has only 1 required dependency:
 
-* libstrophe
+* [libstrophe](https://github.com/strophe/libstrophe)
+
+You will need the following dependencies in order to build optional UI modules.
+
+For GTK graphical interface:
+
 * gtk-3.0
 * gtksourceview (either version 3.0 or 4)
+
+For ncurses-based text interface:
+
+* ncurses
+* readline
 
 Supported systems: Unix-like systems (including Linux, MacOS, BSDs), Windows
 with Cygwin.
