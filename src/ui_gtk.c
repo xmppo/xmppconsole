@@ -27,7 +27,7 @@
 struct xc_ui_gtk {
 	GtkWidget       *uig_window;
 	GtkWidget       *uig_view;
-	GtkWidget       *uig_entry;
+	GtkWidget       *uig_input;
 	GtkSourceBuffer *uig_buffer;
 	bool             uig_done;
 };
@@ -46,15 +46,30 @@ static gboolean ui_gtk_quit_cb(GObject *obj, gpointer data)
 	return FALSE;
 }
 
-static gboolean ui_gtk_input_cb(GObject *obj, gpointer data)
+static gboolean ui_gtk_input_cb(GObject *obj, GdkEventKey *event, gpointer data)
 {
-	struct xc_ui *ui = data;
-	const gchar  *text = gtk_entry_get_text(GTK_ENTRY(obj));
+	struct xc_ui  *ui = data;
+	GtkTextBuffer *buffer;
+	GtkTextIter    start;
+	GtkTextIter    end;
+	gchar         *text;
 
-	xc_send(ui->ui_ctx, text);
-	gtk_entry_set_text(GTK_ENTRY(obj), "");
+	if (event->keyval == GDK_KEY_Return) {
+		if (event->state & GDK_SHIFT_MASK ||
+		    event->state & GDK_CONTROL_MASK) {
+			/* Shift+Enter and Crtl+Enter add new line. */
+			return FALSE;
+		}
 
-	return TRUE;
+		buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(obj));
+		gtk_text_buffer_get_bounds (buffer, &start, &end);
+		text = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
+		xc_send(ui->ui_ctx, text);
+		g_free(text);
+		gtk_text_buffer_set_text(buffer, "", -1);
+		return TRUE;
+	}
+	return FALSE;
 }
 
 static gboolean ui_gtk_timed_cb(gpointer data)
@@ -83,8 +98,8 @@ static int ui_gtk_init(struct xc_ui *ui)
 	GtkSourceBuffer          *buffer;
 	GtkWidget                *window;
 	GtkWidget                *view;
-	GtkWidget                *entry;
-	GtkWidget                *box;
+	GtkWidget                *input;
+	GtkWidget                *paned;
 	GtkWidget                *scrolled;
 	gboolean                  check;
 
@@ -113,22 +128,25 @@ static int ui_gtk_init(struct xc_ui *ui)
 	gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
 	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_WORD_CHAR);
 
-	entry = gtk_entry_new();
-	gtk_widget_set_sensitive(entry, FALSE);
+	input = gtk_text_view_new();
+	gtk_widget_set_sensitive(input, FALSE);
 
 	scrolled = gtk_scrolled_window_new(NULL, NULL);
 	gtk_widget_set_hexpand(scrolled, FALSE);
 	gtk_widget_set_vexpand(scrolled, TRUE);
 
-	box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-	gtk_box_pack_start(GTK_BOX(box), scrolled, TRUE, TRUE, 0);
-	gtk_box_pack_end(GTK_BOX(box), entry, FALSE, FALSE, 0);
+	paned = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
+	gtk_paned_pack1(GTK_PANED(paned), scrolled, TRUE, TRUE);
+	gtk_paned_pack2(GTK_PANED(paned), input, TRUE, TRUE);
+	gtk_paned_set_wide_handle(GTK_PANED(paned), TRUE);
+	gtk_paned_set_position(GTK_PANED(paned), 400);
+
 	gtk_container_add(GTK_CONTAINER(scrolled), view);
-	gtk_container_add(GTK_CONTAINER(window), box);
+	gtk_container_add(GTK_CONTAINER(window), paned);
 
 	ui_gtk->uig_window = window;
 	ui_gtk->uig_view   = view;
-	ui_gtk->uig_entry  = entry;
+	ui_gtk->uig_input  = input;
 	ui_gtk->uig_buffer = buffer;
 	ui_gtk->uig_done   = false;
 	ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT);
@@ -150,7 +168,7 @@ static void ui_gtk_inited(struct xc_ui *ui)
 
 	g_signal_connect(G_OBJECT(ui_gtk->uig_window), "destroy",
 			 G_CALLBACK(ui_gtk_quit_cb), ui);
-	g_signal_connect(G_OBJECT(ui_gtk->uig_entry), "activate",
+	g_signal_connect(G_OBJECT(ui_gtk->uig_input), "key-press-event",
 			 G_CALLBACK(ui_gtk_input_cb), ui);
 	gtk_widget_show_all(ui_gtk->uig_window);
 }
@@ -175,14 +193,14 @@ static void ui_gtk_state_set(struct xc_ui *ui, xc_ui_state_t state)
 		break;
 	case XC_UI_CONNECTED:
 		ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT " (Connected)");
-		gtk_widget_set_sensitive(ui_gtk->uig_entry, TRUE);
+		gtk_widget_set_sensitive(ui_gtk->uig_input, TRUE);
 		break;
 	case XC_UI_DISCONNECTING:
 		ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT " (Disconnecting...)");
 		break;
 	case XC_UI_DISCONNECTED:
 		ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT " (Disconnected)");
-		gtk_widget_set_sensitive(ui_gtk->uig_entry, FALSE);
+		gtk_widget_set_sensitive(ui_gtk->uig_input, FALSE);
 		break;
 	}
 }
