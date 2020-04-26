@@ -70,3 +70,6 @@ libtool
 ltmain.sh
 .dirstamp
 .deps
+
+# Editors
+*.swp
