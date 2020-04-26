@@ -77,7 +77,8 @@ static void ui_ncurses_input_cb(char *line)
 		/* Consider this as Ctrl+D. */
 		is_done = true;
 		xc_quit(g_ctx);
-	} else {
+	} else if (*line != '\0') {
+		add_history(line);
 		xc_send(g_ctx, line);
 	}
 }
