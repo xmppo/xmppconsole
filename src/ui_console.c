@@ -32,7 +32,6 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <strophe.h>
 #include <sys/select.h>
 
@@ -101,7 +100,7 @@ static int ui_console_timed_cb(xmpp_conn_t *conn, void *userdata)
 	if (rlen > 0) {
 		if (line[rlen - 1] == '\n')
 			line[rlen - 1] = '\0';
-		if (strlen(line) > 0)
+		if (*line != '\0')
 			xc_send(ui->ui_ctx, line);
 	}
 	/* line should be freed even if getline() fails. */
