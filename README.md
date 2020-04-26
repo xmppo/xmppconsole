@@ -3,6 +3,8 @@ xmppconsole
 
 xmppconsole - a simple tool for XMPP hackers.
 
+![](screenshot.png)
+
 This tool sends raw XMPP stanzas over an XMPP connection and displays the XMPP
 stream. Main purpose is to study XEPs and debug servers implementation.
 
