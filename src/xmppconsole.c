@@ -37,6 +37,12 @@
 #include <string.h>
 #include <strophe.h>
 
+/* #define HAVE_NEW_LIBSTROPHE 1 */
+
+#define XC_RECONNECT_TIMER 3000
+
+static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata);
+
 static bool connected = false;
 static bool signalled = false;
 static bool verbose_level = false;
@@ -59,7 +65,35 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 		connected = false;
 		if (signalled || xc_ui_is_done(ctx->c_ui))
 			xc_ui_quit(ctx->c_ui);
+		else {
+#ifdef HAVE_NEW_LIBSTROPHE
+			xmpp_ctx_timed_handler_add(ctx->c_ctx, xc_reconnect_cb,
+						   XC_RECONNECT_TIMER, ctx);
+#endif /* HAVE_NEW_LIBSTROPHE */
+		}
 	}
+}
+
+static int xc_connect(xmpp_conn_t *conn, struct xc_ctx *ctx)
+{
+	int rc;
+
+	rc = xmpp_connect_client(conn, NULL, 0, xc_conn_handler, ctx);
+	if (rc == XMPP_EOK)
+		xc_ui_connecting(ctx->c_ui);
+
+	return rc == XMPP_EOK ? 0 : -1;
+}
+
+static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata)
+{
+	struct xc_ctx *ctx = userdata;
+	int            rc;
+
+	rc = xc_connect(ctx->c_conn, ctx);
+
+	/* Don't remove timed handler if connection fails, reconnect later */
+	return rc == 0 ? 0 : 1;
 }
 
 static bool should_display(const char *msg)
@@ -91,6 +125,7 @@ void xc_send(struct xc_ctx *ctx, const char *msg)
 
 void xc_quit(struct xc_ctx *ctx)
 {
+	/* TODO: Replace with xmpp_conn_is_connected() for libstrophe-0.10 */
 	if (connected)
 		xmpp_disconnect(ctx->c_conn);
 	else
@@ -151,8 +186,15 @@ int main(int argc, char **argv)
 	ctx.c_ui   = &ui;
 
 	xc_ui_ctx_set(&ui, &ctx);
-	xc_ui_connecting(&ui);
-	xmpp_connect_client(xmpp_conn, NULL, 0, xc_conn_handler, &ctx);
+	rc = xc_connect(xmpp_conn, &ctx);
+	if (rc != 0) {
+#ifdef HAVE_NEW_LIBSTROPHE
+		xmpp_ctx_timed_handler_add(xmpp_ctx, xc_reconnect_cb,
+					   XC_RECONNECT_TIMER, &ctx);
+#else
+		(void)xc_reconnect_cb;
+#endif /* HAVE_NEW_LIBSTROPHE */
+	}
 
 	g_ctx = &ctx;
 	rc = sigaction(SIGTERM, &xc_sigaction, NULL)
