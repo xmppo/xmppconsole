@@ -67,8 +67,9 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 			xc_ui_quit(ctx->c_ui);
 		else {
 #ifdef HAVE_NEW_LIBSTROPHE
-			xmpp_ctx_timed_handler_add(ctx->c_ctx, xc_reconnect_cb,
-						   XC_RECONNECT_TIMER, ctx);
+			xmpp_global_timed_handler_add(ctx->c_ctx,
+						      xc_reconnect_cb,
+						      XC_RECONNECT_TIMER, ctx);
 #endif /* HAVE_NEW_LIBSTROPHE */
 		}
 	}
@@ -189,8 +190,8 @@ int main(int argc, char **argv)
 	rc = xc_connect(xmpp_conn, &ctx);
 	if (rc != 0) {
 #ifdef HAVE_NEW_LIBSTROPHE
-		xmpp_ctx_timed_handler_add(xmpp_ctx, xc_reconnect_cb,
-					   XC_RECONNECT_TIMER, &ctx);
+		xmpp_global_timed_handler_add(xmpp_ctx, xc_reconnect_cb,
+					      XC_RECONNECT_TIMER, &ctx);
 #else
 		(void)xc_reconnect_cb;
 #endif /* HAVE_NEW_LIBSTROPHE */
