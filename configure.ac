@@ -25,7 +25,22 @@ PKG_CHECK_MODULES([readline], [readline],
         LIBS="$readline_LIBS $LIBS"
         CFLAGS="$CFLAGS $readline_CFLAGS"
     ],
-    [AC_MSG_ERROR([readline is required])])
+    [
+        AC_MSG_CHECKING([for -lreadline])
+        LIBS="-lreadline $LIBS"
+        AC_LINK_IFELSE([AC_LANG_SOURCE([[
+            #include <stdio.h>
+            #include <readline/history.h>
+            #include <readline/readline.h>
+            int main()
+            {
+                rl_callback_handler_install("", NULL);
+                return 0;
+            }
+            ]])],
+            [AC_MSG_RESULT([yes])],
+            [AC_MSG_ERROR([readline is required])])
+    ])
 
 PKG_CHECK_MODULES([gtk], [gtk+-3.0],
     [
@@ -38,8 +53,8 @@ PKG_CHECK_MODULES([gtksourceview], [gtksourceview-4],
     [],
     [
         PKG_CHECK_MODULES([gtksourceview], [gtksourceview-3.0],
-	    [],
-	    [AC_MSG_ERROR([gtksourceview is required (either 3.0 or 4)])])
+            [],
+            [AC_MSG_ERROR([gtksourceview is required (either 3.0 or 4)])])
     ])
 LIBS="$gtksourceview_LIBS $LIBS"
 CFLAGS="$CFLAGS $gtksourceview_CFLAGS"
