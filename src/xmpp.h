@@ -28,6 +28,7 @@ struct xc_ui;
 struct xc_ctx {
 	xmpp_ctx_t   *c_ctx;
 	xmpp_conn_t  *c_conn;
+	const char   *c_host;
 	struct xc_ui *c_ui;
 };
 

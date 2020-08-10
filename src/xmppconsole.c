@@ -79,7 +79,7 @@ static int xc_connect(xmpp_conn_t *conn, struct xc_ctx *ctx)
 {
 	int rc;
 
-	rc = xmpp_connect_client(conn, NULL, 0, xc_conn_handler, ctx);
+	rc = xmpp_connect_client(conn, ctx->c_host, 0, xc_conn_handler, ctx);
 	if (rc == XMPP_EOK)
 		xc_ui_connecting(ctx->c_ui);
 
@@ -157,15 +157,19 @@ int main(int argc, char **argv)
 	const char    *pass;
 	int            rc;
 
+	memset(&ctx, 0, sizeof(ctx));
+
 	/*
 	 * TODO Let user type JID/password in UI.
 	 */
-	if (argc < 3) {
-		printf("Usage: xmppconsole <jid> <password>\n");
+	if (argc < 3 || argc > 4) {
+		printf("Usage: xmppconsole <jid> <password> [host]\n");
 		return 1;
 	}
 	jid = argv[1];
 	pass = argv[2];
+	if (argc == 4)
+		ctx.c_host = argv[3];
 
 	rc = xc_ui_init(&ui, XC_UI_ANY);
 	assert(rc == 0);
