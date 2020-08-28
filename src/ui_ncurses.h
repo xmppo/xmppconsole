@@ -22,6 +22,8 @@
 
 #include "ui.h"
 
+#ifdef BUILD_UI_NCURSES
 extern struct xc_ui_ops xc_ui_ops_ncurses;
+#endif /* BUILD_UI_NCURSES */
 
 #endif /* __XMPPCONSOLE_UI_NCURSES_H__ */

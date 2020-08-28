@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef BUILD_UI_NCURSES
+
 #include "ui.h"
 #include "xmpp.h"
 
@@ -220,3 +222,5 @@ struct xc_ui_ops xc_ui_ops_ncurses = {
 	.uio_is_done   = ui_ncurses_is_done,
 	.uio_quit      = ui_ncurses_quit,
 };
+
+#endif /* BUILD_UI_NCURSES */

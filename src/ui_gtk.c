@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef BUILD_UI_GTK
+
 #include "ui.h"
 #include "xmpp.h"
 
@@ -249,3 +251,5 @@ struct xc_ui_ops xc_ui_ops_gtk = {
 	.uio_is_done   = ui_gtk_is_done,
 	.uio_quit      = ui_gtk_quit,
 };
+
+#endif /* BUILD_UI_GTK */

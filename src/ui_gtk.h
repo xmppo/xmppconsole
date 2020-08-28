@@ -22,6 +22,8 @@
 
 #include "ui.h"
 
+#ifdef BUILD_UI_GTK
 extern struct xc_ui_ops xc_ui_ops_gtk;
+#endif /* BUILD_UI_GTK */
 
 #endif /* __XMPPCONSOLE_UI_GTK_H__ */

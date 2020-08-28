@@ -31,18 +31,25 @@ int xc_ui_init(struct xc_ui *ui, xc_ui_type_t type)
 {
 	int rc = -1;
 
+#ifdef BUILD_UI_GTK
 	if (type == XC_UI_GTK || type == XC_UI_ANY) {
 		ui->ui_ops = &xc_ui_ops_gtk;
 		rc = ui->ui_ops->uio_init(ui);
 	}
+#endif /* BUILD_UI_GTK */
+
+#ifdef BUILD_UI_NCURSES
 	if (type == XC_UI_NCURSES || (type == XC_UI_ANY && rc != 0)) {
 		ui->ui_ops = &xc_ui_ops_ncurses;
 		rc = ui->ui_ops->uio_init(ui);
 	}
+#endif /* BUILD_UI_NCURSES */
+
 	if (type == XC_UI_CONSOLE || (type == XC_UI_ANY && rc != 0)) {
 		ui->ui_ops = &xc_ui_ops_console;
 		rc = ui->ui_ops->uio_init(ui);
 	}
+
 	return rc;
 }
 
