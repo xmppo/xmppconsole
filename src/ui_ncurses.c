@@ -15,6 +15,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Note, this file contains code from an ISC licensed example which is located
+ * at https://github.com/ulfalizer/readline-and-ncurses. Its license:
+ * Copyright (c) 2015-2019, Ulf Magnusson <ulfalizer@gmail.com>
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
  */
 
 #ifdef BUILD_UI_NCURSES
@@ -22,18 +29,21 @@
 #include "ui.h"
 #include "xmpp.h"
 
+#define _XOPEN_SOURCE 700
+
 #include <assert.h>
 #include <curses.h>
 #include <errno.h>
+#include <locale.h>
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <stdlib.h>
 #include <strophe.h>
+#include <wctype.h>
 
 /*
  * TODO
  *  - Resize
- *  - Proper cursor position
  */
 
 struct xc_ui_ncurses {
@@ -44,15 +54,21 @@ struct xc_ui_ncurses {
 
 #define UI_NCURSES_INPUT_TIMEOUT 1
 
+#define max(a, b)         \
+  ({ typeof(a) _a = a;    \
+     typeof(b) _b = b;    \
+     _a > _b ? _a : _b; })
+
 static bool           is_done = false;
 static bool           is_stop = false;
 static struct xc_ctx *g_ctx = NULL;
 static struct xc_ui  *g_ui = NULL;
 static int            g_input = 0;
+static bool           g_input_avail = false;
 
 static int ui_ncurses_input_avail_cb(void)
 {
-	return g_input != 0;
+	return g_input_avail;
 }
 
 static int ui_ncurses_getc_cb(FILE *dummy)
@@ -60,8 +76,80 @@ static int ui_ncurses_getc_cb(FILE *dummy)
 	int input = g_input;
 
 	g_input = 0;
+	g_input_avail = false;
 
 	return input;
+}
+
+/*
+ * Calculates the cursor column for the readline window in a way that supports
+ * multibyte, multi-column and combining characters. readline itself calculates
+ * this as part of its default redisplay function and does not export the
+ * cursor column.
+ *
+ * Returns the total width (in columns) of the characters in the 'n'-byte
+ * prefix of the null-terminated multibyte string 's'. If 'n' is larger than
+ * 's', returns the total width of the string. Tries to emulate how readline
+ * prints some special characters.
+ *
+ * 'offset' is the current horizontal offset within the line. This is used to
+ * get tab stops right.
+ *
+ * Makes a guess for malformed strings.
+ */
+static size_t ui_ncurses_strnwidth(const char *s, size_t n, size_t offset)
+{
+	mbstate_t shift_state;
+	wchar_t wc;
+	size_t wc_len;
+	size_t width = 0;
+
+	/* Start in the initial shift state */
+	memset(&shift_state, '\0', sizeof shift_state);
+
+	for (size_t i = 0; i < n; i += wc_len) {
+		/* Extract the next multibyte character */
+		wc_len = mbrtowc(&wc, s + i, MB_CUR_MAX, &shift_state);
+		switch (wc_len) {
+		case 0:
+			/* Reached the end of the string */
+			goto done;
+		case (size_t)-1:
+			/* Fallthrough */
+		case (size_t)-2:
+			/*
+			 * Failed to extract character. Guess that each character is one
+			 * byte/column wide each starting from the invalid character to
+			 * keep things simple.
+			 */
+			width += strnlen(s + i, n - i);
+			goto done;
+		}
+
+		if (wc == '\t')
+			width = ((width + offset + 8) & ~7) - offset;
+		else {
+			/*
+			 * TODO: readline also outputs ~<letter> and the like for some
+			 * non-printable characters
+			 */
+			width += iswcntrl(wc) ? 2 : max(0, wcwidth(wc));
+		}
+	}
+done:
+	return width;
+}
+
+static void ui_ncurses_move_cursor(struct xc_ui_ncurses *priv)
+{
+	size_t pos = ui_ncurses_strnwidth(rl_line_buffer, rl_point, 0);
+	wmove(priv->win_inp, 0, pos);
+}
+
+static void ui_ncurses_redisplay_cursor(struct xc_ui_ncurses *priv)
+{
+	ui_ncurses_move_cursor(priv);
+	wrefresh(priv->win_inp);
 }
 
 static void ui_ncurses_redisplay_cb(void)
@@ -70,6 +158,7 @@ static void ui_ncurses_redisplay_cb(void)
 
 	werase(priv->win_inp);
 	mvwaddstr(priv->win_inp, 0, 0, rl_line_buffer);
+	ui_ncurses_move_cursor(priv);
 	wrefresh(priv->win_inp);
 }
 
@@ -103,15 +192,23 @@ static int ui_ncurses_init(struct xc_ui *ui)
 {
 	struct xc_ui_ncurses *priv;
 	WINDOW               *result;
+	char                 *loc;
 
 	priv = malloc(sizeof(*priv));
 	assert(priv != NULL);
+
+	loc = setlocale(LC_ALL, "");
+	if (loc == NULL)
+		return -ENODEV;
 
 	result = initscr();
 	if (result == NULL)
 		return -ENODEV;
 
+	cbreak();
 	noecho();
+	nonl();
+	intrflush(NULL, FALSE);
 
 	priv->win_log = newwin(LINES - 2, COLS, 0, 0);
 	priv->win_sep = newwin(1, COLS, LINES - 2, 0);
@@ -151,6 +248,8 @@ static void ui_ncurses_status_set(struct xc_ui *ui, const char *status)
 
 static void ui_ncurses_state_set(struct xc_ui *ui, xc_ui_state_t state)
 {
+	struct xc_ui_ncurses *priv = ui->ui_priv;
+
 	switch (state) {
 	case XC_UI_UNKNOWN:
 		/* Must not happen. */
@@ -172,9 +271,9 @@ static void ui_ncurses_state_set(struct xc_ui *ui, xc_ui_state_t state)
 		break;
 	case XC_UI_DISCONNECTED:
 		ui_ncurses_status_set(ui, "[Disconnected]");
-		is_done = true;
 		break;
 	}
+	ui_ncurses_redisplay_cursor(priv);
 }
 
 static void ui_ncurses_run(struct xc_ui *ui)
@@ -189,6 +288,7 @@ static void ui_ncurses_run(struct xc_ui *ui)
 			xmpp_run_once(ctx, 1);
 		} else {
 			g_input = c;
+			g_input_avail = true;
 			rl_callback_read_char();
 		}
 	}
@@ -201,6 +301,7 @@ static void ui_ncurses_print(struct xc_ui *ui, const char *msg)
 	waddstr(priv->win_log, msg);
 	waddstr(priv->win_log, "\n");
 	wrefresh(priv->win_log);
+	ui_ncurses_redisplay_cursor(priv);
 }
 
 static bool ui_ncurses_is_done(struct xc_ui *ui)
