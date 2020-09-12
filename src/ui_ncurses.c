@@ -219,8 +219,34 @@ static void ui_ncurses_input_cb(char *line)
 	}
 }
 
+static int ui_ncurses_scrollup_cb(int _x1, int _x2)
+{
+	struct xc_ui_ncurses *priv = g_ui->ui_priv;
+
+	/* TODO Change position in the list of lines. */
+	ui_ncurses_redisplay_log(priv);
+
+	return 0;
+}
+
+static int ui_ncurses_scrolldown_cb(int _x1, int _x2)
+{
+	struct xc_ui_ncurses *priv = g_ui->ui_priv;
+
+	/* TODO Change position in the list of lines. */
+	ui_ncurses_redisplay_log(priv);
+
+	return 0;
+}
+
 static void ui_ncurses_rl_init(void)
 {
+	rl_bind_key ('\t', rl_insert);
+	rl_bind_keyseq("\\e[5~", ui_ncurses_scrollup_cb);
+	rl_bind_keyseq("\\e[6~", ui_ncurses_scrolldown_cb);
+	rl_bind_keyseq("\\eOy", ui_ncurses_scrollup_cb);
+	rl_bind_keyseq("\\eOs", ui_ncurses_scrolldown_cb);
+
 	rl_catch_signals = 0;
 	rl_catch_sigwinch = 0;
 	rl_deprep_term_function = NULL;
