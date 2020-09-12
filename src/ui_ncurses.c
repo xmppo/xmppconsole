@@ -50,6 +50,7 @@ struct xc_ui_ncurses {
 	WINDOW *win_log;
 	WINDOW *win_sep;
 	WINDOW *win_inp;
+	const char *last_status;
 };
 
 #define UI_NCURSES_INPUT_TIMEOUT 1
@@ -65,6 +66,7 @@ static struct xc_ctx *g_ctx = NULL;
 static struct xc_ui  *g_ui = NULL;
 static int            g_input = 0;
 static bool           g_input_avail = false;
+static chtype         g_sep_color = A_STANDOUT;
 
 static int ui_ncurses_input_avail_cb(void)
 {
@@ -140,6 +142,18 @@ done:
 	return width;
 }
 
+static void ui_ncurses_status_set(struct xc_ui_ncurses *priv, const char *status)
+{
+	priv->last_status = status;
+	if (*status == '\0') {
+		wbkgd(priv->win_sep, g_sep_color);
+	} else {
+		werase(priv->win_sep);
+		mvwaddstr(priv->win_sep, 0, 0, status);
+	}
+	wrefresh(priv->win_sep);
+}
+
 static void ui_ncurses_move_cursor(struct xc_ui_ncurses *priv)
 {
 	size_t pos = ui_ncurses_strnwidth(rl_line_buffer, rl_point, 0);
@@ -160,6 +174,37 @@ static void ui_ncurses_redisplay_cb(void)
 	mvwaddstr(priv->win_inp, 0, 0, rl_line_buffer);
 	ui_ncurses_move_cursor(priv);
 	wrefresh(priv->win_inp);
+}
+
+static void ui_ncurses_redisplay_log(struct xc_ui_ncurses *priv)
+{
+	/*
+	 * TODO Maintain a list of the lines and print required lines.
+	 * This feature will require accurate handling of wrapped lines
+	 * and multibyte characters.
+	 * Scrolling feature will use this function to redraw the window
+	 * after changing position in the list of lines.
+	 */
+	wrefresh(priv->win_log);
+}
+
+static void ui_ncurses_redisplay_sep(struct xc_ui_ncurses *priv)
+{
+	ui_ncurses_status_set(priv, priv->last_status);
+}
+
+static void ui_ncurses_resize(struct xc_ui_ncurses *priv)
+{
+	if (LINES >= 3) {
+		wresize(priv->win_log, LINES - 2, COLS);
+		wresize(priv->win_sep, 1, COLS);
+		wresize(priv->win_inp, 1, COLS);
+		mvwin(priv->win_sep, LINES - 2, 0);
+		mvwin(priv->win_inp, LINES - 1, 0);
+	}
+	ui_ncurses_redisplay_log(priv);
+	ui_ncurses_redisplay_sep(priv);
+	ui_ncurses_redisplay_cb();
 }
 
 static void ui_ncurses_input_cb(char *line)
@@ -217,6 +262,7 @@ static int ui_ncurses_init(struct xc_ui *ui)
 	scrollok(priv->win_log, TRUE);
 	wtimeout(priv->win_inp, UI_NCURSES_INPUT_TIMEOUT);
 
+	priv->last_status = "";
 	ui->ui_priv = priv;
 
 	return 0;
@@ -233,19 +279,6 @@ static void ui_ncurses_fini(struct xc_ui *ui)
 	free(priv);
 }
 
-static void ui_ncurses_status_set(struct xc_ui *ui, const char *status)
-{
-	struct xc_ui_ncurses *priv = ui->ui_priv;
-
-	if (*status == '\0') {
-		wbkgd(priv->win_sep, A_STANDOUT);
-	} else {
-		werase(priv->win_sep);
-		mvwaddstr(priv->win_sep, 0, 0, status);
-	}
-	wrefresh(priv->win_sep);
-}
-
 static void ui_ncurses_state_set(struct xc_ui *ui, xc_ui_state_t state)
 {
 	struct xc_ui_ncurses *priv = ui->ui_priv;
@@ -257,20 +290,20 @@ static void ui_ncurses_state_set(struct xc_ui *ui, xc_ui_state_t state)
 	case XC_UI_INITED:
 		g_ctx = ui->ui_ctx;
 		g_ui = ui;
-		ui_ncurses_status_set(ui, "");
+		ui_ncurses_status_set(priv, "");
 		ui_ncurses_rl_init();
 		break;
 	case XC_UI_CONNECTING:
-		ui_ncurses_status_set(ui, "[Connecting...]");
+		ui_ncurses_status_set(priv, "[Connecting...]");
 		break;
 	case XC_UI_CONNECTED:
-		ui_ncurses_status_set(ui, "[Connected]");
+		ui_ncurses_status_set(priv, "[Connected]");
 		break;
 	case XC_UI_DISCONNECTING:
-		ui_ncurses_status_set(ui, "[Disconnecting...]");
+		ui_ncurses_status_set(priv, "[Disconnecting...]");
 		break;
 	case XC_UI_DISCONNECTED:
-		ui_ncurses_status_set(ui, "[Disconnected]");
+		ui_ncurses_status_set(priv, "[Disconnected]");
 		break;
 	}
 	ui_ncurses_redisplay_cursor(priv);
@@ -284,9 +317,18 @@ static void ui_ncurses_run(struct xc_ui *ui)
 
 	while (!is_stop) {
 		c = wgetch(priv->win_inp);
-		if (c == ERR) {
+		switch (c) {
+		case ERR:
 			xmpp_run_once(ctx, 1);
-		} else {
+			break;
+		case KEY_RESIZE:
+			ui_ncurses_resize(priv);
+			break;
+		case '\f':
+			clearok(curscr, TRUE);
+			ui_ncurses_resize(priv);
+			break;
+		default:
 			g_input = c;
 			g_input_avail = true;
 			rl_callback_read_char();
