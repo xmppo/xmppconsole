@@ -32,10 +32,20 @@
 #include "xmpp.h"
 
 #include <assert.h>
+#include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strophe.h>
+
+struct xc_options {
+	const char *xo_jid;
+	const char *xo_passwd;
+	const char *xo_host;
+	bool xo_help;
+	bool xo_trust_tls;
+};
 
 #define XC_RECONNECT_TIMER 3000
 
@@ -134,6 +144,58 @@ void xc_quit(struct xc_ctx *ctx)
 		xc_ui_quit(ctx->c_ui);
 }
 
+static void xc_usage(FILE *stream, const char *name)
+{
+	fprintf(stream, "Usage: %s [OPTIONS] <JID> <PASSWORD> [HOST]\n", name);
+	fprintf(stream, "OPTIONS:\n"
+			"  --help, -h\t\tPrint this help\n"
+			"  --trust-tls-cert, -t\tTrust TLS certificate "
+						"(use at your own risk!)\n");
+}
+
+static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
+{
+	int c;
+	int arg_nr;
+
+	static struct option long_opts[] = {
+		{ "help", no_argument, 0, 'h' },
+		{ "trust-tls-cert", no_argument, 0, 't' },
+		{ 0, 0, 0, 0 }
+	};
+	const char *short_opts = "ht";
+
+	memset(opts, 0, sizeof(*opts));
+
+	while (1) {
+		int index = 0;
+		c = getopt_long(argc, argv, short_opts, long_opts, &index);
+		if (c == -1)
+			break;
+		switch (c) {
+		case 'h':
+			opts->xo_help = true;
+			return true;
+		case 't':
+			opts->xo_trust_tls = true;
+			break;
+		default:
+			return false;
+		}
+	}
+
+	arg_nr = argc - optind;
+	if (arg_nr < 2 || arg_nr > 3)
+		return false;
+
+	opts->xo_jid = argv[optind];
+	opts->xo_passwd = argv[optind + 1];
+	if (arg_nr > 2)
+		opts->xo_host = argv[optind + 2];
+
+	return true;
+}
+
 /* Global pointer for signal handler. */
 static struct xc_ctx *g_ctx;
 
@@ -149,28 +211,28 @@ static struct sigaction xc_sigaction = {
 
 int main(int argc, char **argv)
 {
-	struct xc_ui   ui;
-	struct xc_ctx  ctx;
-	xmpp_log_t     log;
-	xmpp_ctx_t    *xmpp_ctx;
-	xmpp_conn_t   *xmpp_conn;
-	const char    *jid;
-	const char    *pass;
-	int            rc;
+	struct xc_options opts;
+	struct xc_ui      ui;
+	struct xc_ctx     ctx;
+	xmpp_log_t        log;
+	xmpp_ctx_t       *xmpp_ctx;
+	xmpp_conn_t      *xmpp_conn;
+	long              xmpp_flags;
+	bool              result;
+	int               rc;
 
 	memset(&ctx, 0, sizeof(ctx));
+
+	result = xc_options_parse(argc, argv, &opts);
+	if (!result || opts.xo_help) {
+		xc_usage(result ? stdout : stderr,
+			 argc > 0 ? argv[0] : "xmppconsole");
+		exit(result ? EXIT_SUCCESS : EXIT_FAILURE);
+	}
 
 	/*
 	 * TODO Let user type JID/password in UI.
 	 */
-	if (argc < 3 || argc > 4) {
-		printf("Usage: xmppconsole <jid> <password> [host]\n");
-		return 1;
-	}
-	jid = argv[1];
-	pass = argv[2];
-	if (argc == 4)
-		ctx.c_host = argv[3];
 
 	rc = xc_ui_init(&ui, XC_UI_ANY);
 	assert(rc == 0);
@@ -184,9 +246,12 @@ int main(int argc, char **argv)
 	assert(xmpp_ctx != NULL);
 	xmpp_conn = xmpp_conn_new(xmpp_ctx);
 	assert(xmpp_conn != NULL);
-	xmpp_conn_set_flags(xmpp_conn, XMPP_CONN_FLAG_MANDATORY_TLS);
-	xmpp_conn_set_jid(xmpp_conn, jid);
-	xmpp_conn_set_pass(xmpp_conn, pass);
+	xmpp_flags = opts.xo_trust_tls ? XMPP_CONN_FLAG_TRUST_TLS :
+					 XMPP_CONN_FLAG_MANDATORY_TLS;
+	xmpp_conn_set_flags(xmpp_conn, xmpp_flags);
+	xmpp_conn_set_jid(xmpp_conn, opts.xo_jid);
+	xmpp_conn_set_pass(xmpp_conn, opts.xo_passwd);
+	ctx.c_host = opts.xo_host;
 	ctx.c_ctx  = xmpp_ctx;
 	ctx.c_conn = xmpp_conn;
 	ctx.c_ui   = &ui;
