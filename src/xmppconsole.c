@@ -53,6 +53,11 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 {
 	struct xc_ctx *ctx = userdata;
 
+	/*
+	 * TODO Distinguish between network issues and authentication error.
+	 * When the later happens, don't reconnect.
+	 */
+
 	if (status == XMPP_CONN_CONNECT) {
 		xc_ui_connected(ctx->c_ui);
 		connected = true;
