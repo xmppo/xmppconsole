@@ -23,7 +23,7 @@ Build requirements
 
 xmppconsole has only 1 required dependency:
 
-* [libstrophe](https://github.com/strophe/libstrophe)
+* [libstrophe](https://github.com/strophe/libstrophe) version 0.10.0 or higher
 
 You will need the following dependencies in order to build optional UI modules.
 

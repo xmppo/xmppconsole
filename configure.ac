@@ -6,12 +6,12 @@ AC_CONFIG_FILES([Makefile])
 AC_PROG_CC
 AM_PROG_CC_C_O
 
-PKG_CHECK_MODULES([libstrophe], [libstrophe >= 0.9.0],
+PKG_CHECK_MODULES([libstrophe], [libstrophe >= 0.10.0],
     [
         LIBS="$libstrophe_LIBS $LIBS"
         CFLAGS="$CFLAGS $libstrophe_CFLAGS"
     ],
-    [AC_MSG_ERROR([libstrophe is required])])
+    [AC_MSG_ERROR([libstrophe 0.10.0 or higher is required])])
 
 #
 # Ncurses UI module

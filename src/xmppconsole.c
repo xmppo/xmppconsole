@@ -37,8 +37,6 @@
 #include <string.h>
 #include <strophe.h>
 
-/* #define HAVE_NEW_LIBSTROPHE 1 */
-
 #define XC_RECONNECT_TIMER 3000
 
 static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata);
@@ -66,11 +64,9 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 		if (signalled || xc_ui_is_done(ctx->c_ui))
 			xc_ui_quit(ctx->c_ui);
 		else {
-#ifdef HAVE_NEW_LIBSTROPHE
 			xmpp_global_timed_handler_add(ctx->c_ctx,
 						      xc_reconnect_cb,
 						      XC_RECONNECT_TIMER, ctx);
-#endif /* HAVE_NEW_LIBSTROPHE */
 		}
 	}
 }
@@ -193,12 +189,8 @@ int main(int argc, char **argv)
 	xc_ui_ctx_set(&ui, &ctx);
 	rc = xc_connect(xmpp_conn, &ctx);
 	if (rc != 0) {
-#ifdef HAVE_NEW_LIBSTROPHE
 		xmpp_global_timed_handler_add(xmpp_ctx, xc_reconnect_cb,
 					      XC_RECONNECT_TIMER, &ctx);
-#else
-		(void)xc_reconnect_cb;
-#endif /* HAVE_NEW_LIBSTROPHE */
 	}
 
 	g_ctx = &ctx;
