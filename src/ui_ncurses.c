@@ -209,14 +209,39 @@ static void ui_ncurses_redisplay_cb(void)
 
 static void ui_ncurses_redisplay_log(struct xc_ui_ncurses *priv)
 {
-	/*
-	 * TODO Erase the window. If paged is true, start adding strings
-	 * starting from the line_current. If paged is false, find first line
-	 * from the tail.
-	 * Use line->chars_nr to calculate number of rows taking wrapping into
-	 * account.
-	 */
+	struct ui_ncurses_line *p = NULL;
+	struct ui_ncurses_line *tmp;
+	size_t nr;
+
+#define XC_LINE_TO_ROWS(line) (((line)->chars_nr + COLS - 1) / COLS)
+#define LOG_ROWS (LINES - 2)
+
+	if (!priv->paged) {
+		tmp = xc_list_tail(&priv->lines);
+		nr = 0;
+		while (tmp != NULL && nr < LOG_ROWS) {
+			p = tmp;
+			nr += XC_LINE_TO_ROWS(p);
+			tmp = xc_list_prev(&priv->lines, tmp);
+		}
+	} else {
+		p = priv->line_current;
+	}
+
+	werase(priv->win_log);
+	nr = 0;
+	while (p != NULL && nr < LOG_ROWS) {
+		waddstr(priv->win_log, p->line);
+		waddstr(priv->win_log, "\n");
+		nr += XC_LINE_TO_ROWS(p);
+		p = xc_list_next(&priv->lines, p);
+	}
+
+#undef LOG_ROWS
+#undef XC_LINE_TO_ROWS
+
 	wrefresh(priv->win_log);
+	ui_ncurses_redisplay_cursor(priv);
 }
 
 static void ui_ncurses_redisplay_sep(struct xc_ui_ncurses *priv)
