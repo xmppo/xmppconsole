@@ -3,6 +3,7 @@ AM_CFLAGS = -I$(top_srcdir)/src
 bin_PROGRAMS = xmppconsole
 
 xmppconsole_SOURCES = \
+	src/list.c \
 	src/ui.c \
 	src/ui_console.c \
 	src/ui_gtk.c \
@@ -10,6 +11,7 @@ xmppconsole_SOURCES = \
 	src/xmppconsole.c
 
 xmppconsole_SOURCES += \
+	src/list.h \
 	src/ui.h \
 	src/ui_console.h \
 	src/ui_gtk.h \
