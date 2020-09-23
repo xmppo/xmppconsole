@@ -40,7 +40,9 @@
 #include <readline/readline.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strophe.h>
+#include <wchar.h>
 #include <wctype.h>
 
 struct ui_ncurses_line {
