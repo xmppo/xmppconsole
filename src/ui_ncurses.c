@@ -67,6 +67,10 @@ struct xc_ui_ncurses {
 #define UI_NCURSES_LINES_MAX 1024
 #define UI_NCURSES_LINE_MAGIC 0xdeadbeef
 
+#define XC_LINE_TO_ROWS(line) (((line)->chars_nr + COLS - 1) / COLS)
+/* Number of visible rows. The last row is always empty because of '\n'. */
+#define XC_LOG_ROWS ((int)LINES - 3)
+
 static struct xc_list_descr ui_ncurses_lines_descr =
 	XC_LIST_DESCR("log lines", struct ui_ncurses_line, link, magic,
 		      UI_NCURSES_LINE_MAGIC);
@@ -213,34 +217,36 @@ static void ui_ncurses_redisplay_log(struct xc_ui_ncurses *priv)
 {
 	struct ui_ncurses_line *p = NULL;
 	struct ui_ncurses_line *tmp;
-	size_t nr;
+	size_t rows;
+	size_t i;
 
-#define XC_LINE_TO_ROWS(line) (((line)->chars_nr + COLS - 1) / COLS)
-#define LOG_ROWS (LINES - 2)
+	rows = XC_LOG_ROWS < 0 ? 0 : (size_t)XC_LOG_ROWS;
 
 	if (!priv->paged) {
 		tmp = xc_list_tail(&priv->lines);
-		nr = 0;
-		while (tmp != NULL && nr < LOG_ROWS) {
+		i = 0;
+		while (tmp != NULL && i < rows) {
 			p = tmp;
-			nr += XC_LINE_TO_ROWS(p);
+			i += XC_LINE_TO_ROWS(p);
 			tmp = xc_list_prev(&priv->lines, tmp);
 		}
+		/*
+		 * This is a hack to print all the required lines. Otherwise,
+		 * it may happen that the last line will never be printed.
+		 */
+		rows = i;
 	} else {
 		p = priv->line_current;
 	}
 
 	werase(priv->win_log);
-	nr = 0;
-	while (p != NULL && nr < LOG_ROWS) {
+	i = 0;
+	while (p != NULL && i < rows) {
 		waddstr(priv->win_log, p->line);
 		waddstr(priv->win_log, "\n");
-		nr += XC_LINE_TO_ROWS(p);
+		i += XC_LINE_TO_ROWS(p);
 		p = xc_list_next(&priv->lines, p);
 	}
-
-#undef LOG_ROWS
-#undef XC_LINE_TO_ROWS
 
 	wrefresh(priv->win_log);
 	ui_ncurses_redisplay_cursor(priv);
@@ -499,5 +505,8 @@ struct xc_ui_ops xc_ui_ops_ncurses = {
 	.uio_is_done   = ui_ncurses_is_done,
 	.uio_quit      = ui_ncurses_quit,
 };
+
+#undef XC_LOG_ROWS
+#undef XC_LINE_TO_ROWS
 
 #endif /* BUILD_UI_NCURSES */
