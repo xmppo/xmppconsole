@@ -286,11 +286,39 @@ static void ui_ncurses_input_cb(char *line)
 static int ui_ncurses_scrollup_cb(int _x1, int _x2)
 {
 	struct xc_ui_ncurses *priv = g_ui->ui_priv;
+	size_t rows;
+	size_t nr;
+	size_t i;
 
-	/*
-	 * TODO Change line_current. If priv->paged is false, start
-	 * counting from the tail.
-	 */
+	/* How many lines to scroll. Scroll by 1 for very small window. */
+	nr = XC_LOG_ROWS <= 0 ? 1 : (size_t)XC_LOG_ROWS;
+	/* Scroll by a half of the window. */
+	nr = (nr + 1) / 2;
+	rows = XC_LOG_ROWS < 0 ? 0 : (size_t)XC_LOG_ROWS;
+
+	if (!priv->paged) {
+		/* Find the 1st visible line. */
+		priv->line_current = xc_list_tail(&priv->lines);
+		for (i = 0; priv->line_current != NULL;) {
+			i += XC_LINE_TO_ROWS(priv->line_current);
+			if (i >= rows)
+				break;
+			priv->line_current =
+				xc_list_prev(&priv->lines, priv->line_current);
+		}
+		priv->paged = priv->line_current != NULL;
+	}
+
+	for (i = 0; i < nr && priv->line_current != NULL;) {
+		priv->line_current =
+				xc_list_prev(&priv->lines, priv->line_current);
+		if (priv->line_current != NULL)
+			i += XC_LINE_TO_ROWS(priv->line_current);
+	}
+	if (priv->line_current == NULL && priv->paged) {
+		priv->line_current = xc_list_head(&priv->lines);
+	}
+
 	ui_ncurses_redisplay_log(priv);
 
 	return 0;
@@ -299,11 +327,35 @@ static int ui_ncurses_scrollup_cb(int _x1, int _x2)
 static int ui_ncurses_scrolldown_cb(int _x1, int _x2)
 {
 	struct xc_ui_ncurses *priv = g_ui->ui_priv;
+	struct ui_ncurses_line *p;
+	size_t rows;
+	size_t nr;
+	size_t i;
 
-	/*
-	 * TODO Change line_current. If we reached bottom, set line_current
-	 * to NULL and set paged to false.
-	 */
+	/* How many lines to scroll. Scroll by 1 for very small window. */
+	nr = XC_LOG_ROWS <= 0 ? 1 : (size_t)XC_LOG_ROWS;
+	/* Scroll by a half of the window. */
+	nr = (nr + 1) / 2;
+	rows = XC_LOG_ROWS < 0 ? 0 : (size_t)XC_LOG_ROWS;
+
+	if (priv->paged) {
+		for (i = 0; i < nr && priv->line_current != NULL;) {
+			i += XC_LINE_TO_ROWS(priv->line_current);
+			priv->line_current =
+				xc_list_next(&priv->lines, priv->line_current);
+		}
+		/* Check whether we have enough lines to fill the window. */
+		for (i = 0, p = priv->line_current; p != NULL;) {
+			i += XC_LINE_TO_ROWS(p);
+			if (i >= rows)
+				break;
+			p = xc_list_next(&priv->lines, p);
+		}
+		priv->paged = p != NULL;
+		if (!priv->paged)
+			priv->line_current = NULL;
+	}
+
 	ui_ncurses_redisplay_log(priv);
 
 	return 0;
@@ -314,8 +366,6 @@ static void ui_ncurses_rl_init(void)
 	rl_bind_key ('\t', rl_insert);
 	rl_bind_keyseq("\\e[5~", ui_ncurses_scrollup_cb);
 	rl_bind_keyseq("\\e[6~", ui_ncurses_scrolldown_cb);
-	rl_bind_keyseq("\\eOy", ui_ncurses_scrollup_cb);
-	rl_bind_keyseq("\\eOs", ui_ncurses_scrolldown_cb);
 
 	rl_catch_signals = 0;
 	rl_catch_sigwinch = 0;
