@@ -30,6 +30,10 @@
 #include "ui.h"
 #include "xmpp.h"
 
+/* Include strnlen() and others. */
+#ifdef _XOPEN_SOURCE
+#undef _XOPEN_SOURCE
+#endif
 #define _XOPEN_SOURCE 700
 
 #include <assert.h>
