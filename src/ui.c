@@ -27,6 +27,43 @@
 
 #include <string.h>
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#endif
+
+static const struct {
+	const char *name;
+	xc_ui_type_t type;
+} xc_ui_names[] = {
+	{ "any", XC_UI_ANY, },
+	{ "console", XC_UI_CONSOLE, },
+#ifdef BUILD_UI_GTK
+	{ "gtk", XC_UI_GTK, },
+#endif
+#ifdef BUILD_UI_NCURSES
+	{ "ncurses", XC_UI_NCURSES, },
+#endif
+};
+static const size_t xc_ui_names_nr = ARRAY_SIZE(xc_ui_names);
+
+xc_ui_type_t xc_ui_name_to_type(const char *name)
+{
+	xc_ui_type_t result = XC_UI_ERROR;
+	size_t i;
+
+	if (name == NULL) {
+		result = XC_UI_ANY;
+	} else {
+		for (i = 0; i < xc_ui_names_nr; ++i) {
+			if (strcmp(xc_ui_names[i].name, name) == 0) {
+				result = xc_ui_names[i].type;
+				break;
+			}
+		}
+	}
+	return result;
+}
+
 int xc_ui_init(struct xc_ui *ui, xc_ui_type_t type)
 {
 	int rc = -1;

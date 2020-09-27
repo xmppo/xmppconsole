@@ -36,6 +36,7 @@ typedef enum {
 } xc_ui_state_t;
 
 typedef enum {
+	XC_UI_ERROR,
 	XC_UI_ANY,
 	XC_UI_GTK,
 	XC_UI_NCURSES,
@@ -58,6 +59,8 @@ struct xc_ui_ops {
 	bool (*uio_is_done)(struct xc_ui *ui);
 	void (*uio_quit)(struct xc_ui *ui);
 };
+
+xc_ui_type_t xc_ui_name_to_type(const char *name);
 
 int  xc_ui_init(struct xc_ui *ui, xc_ui_type_t type);
 void xc_ui_fini(struct xc_ui *ui);

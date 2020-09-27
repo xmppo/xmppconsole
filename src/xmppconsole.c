@@ -43,6 +43,8 @@ struct xc_options {
 	const char *xo_jid;
 	const char *xo_passwd;
 	const char *xo_host;
+	const char *xo_ui;
+	xc_ui_type_t xo_ui_type;
 	bool xo_help;
 	bool xo_trust_tls;
 };
@@ -150,7 +152,16 @@ static void xc_usage(FILE *stream, const char *name)
 	fprintf(stream, "OPTIONS:\n"
 			"  --help, -h\t\tPrint this help\n"
 			"  --trust-tls-cert, -t\tTrust TLS certificate "
-						"(use at your own risk!)\n");
+						"(use at your own risk!)\n"
+			"  --ui, -u <NAME>\tUse specified UI. Available: any, "
+#ifdef BUILD_UI_GTK
+			"gtk, "
+#endif
+#ifdef BUILD_UI_NCURSES
+			"ncurses, "
+#endif
+			"console.\n"
+		);
 }
 
 static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
@@ -161,9 +172,10 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 	static struct option long_opts[] = {
 		{ "help", no_argument, 0, 'h' },
 		{ "trust-tls-cert", no_argument, 0, 't' },
+		{ "ui", required_argument, 0, 'u' },
 		{ 0, 0, 0, 0 }
 	};
-	const char *short_opts = "ht";
+	const char *short_opts = "htu:";
 
 	memset(opts, 0, sizeof(*opts));
 
@@ -179,6 +191,9 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 		case 't':
 			opts->xo_trust_tls = true;
 			break;
+		case 'u':
+			opts->xo_ui = optarg;
+			break;
 		default:
 			return false;
 		}
@@ -192,6 +207,15 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 	opts->xo_passwd = argv[optind + 1];
 	if (arg_nr > 2)
 		opts->xo_host = argv[optind + 2];
+
+	/* Parse UI string */
+	opts->xo_ui_type = xc_ui_name_to_type(opts->xo_ui);
+	if (opts->xo_ui_type == XC_UI_ERROR) {
+		fprintf(stderr, "Unknown UI name: %s. Check spelling and "
+			"whether the UI module is builtin (with --help).\n",
+			opts->xo_ui ? opts->xo_ui : "<NULL>");
+		return false;
+	}
 
 	return true;
 }
@@ -234,7 +258,7 @@ int main(int argc, char **argv)
 	 * TODO Let user type JID/password in UI.
 	 */
 
-	rc = xc_ui_init(&ui, XC_UI_ANY);
+	rc = xc_ui_init(&ui, opts.xo_ui_type);
 	assert(rc == 0);
 
 	log = (xmpp_log_t){
