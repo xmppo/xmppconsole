@@ -52,7 +52,7 @@ xc_ui_type_t xc_ui_name_to_type(const char *name)
 		result = XC_UI_ANY;
 	} else {
 		for (i = 0; i < xc_ui_names_nr; ++i) {
-			if (strcmp(xc_ui_names[i].name, name) == 0) {
+			if (xc_streq(xc_ui_names[i].name, name)) {
 				result = xc_ui_names[i].type;
 				break;
 			}

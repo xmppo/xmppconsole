@@ -26,4 +26,6 @@
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #endif
 
+#define xc_streq(s1, s2) (strcmp((s1), (s2)) == 0)
+
 #endif /* __XMPPCONSOLE_MISC_H__ */

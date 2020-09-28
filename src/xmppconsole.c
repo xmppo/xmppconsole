@@ -28,6 +28,7 @@
  * responsiveness of the UI.
  */
 
+#include "misc.h"
 #include "ui.h"
 #include "xmpp.h"
 
@@ -75,7 +76,7 @@ static int xc_conn_raw_proceedtls_handler(xmpp_conn_t *conn,
 {
 	int rc = -1;
 
-	if (strcmp(xmpp_stanza_get_name(stanza), "proceed") == 0) {
+	if (xc_streq(xmpp_stanza_get_name(stanza), "proceed")) {
 		rc = xmpp_conn_tls_start(conn);
 		if (rc == 0) {
 			xmpp_handler_delete(conn, xc_conn_raw_error_handler);
@@ -110,7 +111,7 @@ static int xc_conn_raw_features_handler(xmpp_conn_t *conn,
 
 	child = xmpp_stanza_get_child_by_name(stanza, "starttls");
 	if (!secured && child != NULL &&
-	    strcmp(xmpp_stanza_get_ns(child), XMPP_NS_TLS) == 0) {
+	    xc_streq(xmpp_stanza_get_ns(child), XMPP_NS_TLS)) {
 		child = xmpp_stanza_new(ctx->c_ctx);
 		xmpp_stanza_set_name(child, "starttls");
 		xmpp_stanza_set_ns(child, XMPP_NS_TLS);
