@@ -26,10 +26,11 @@
 struct xc_ui;
 
 struct xc_ctx {
-	xmpp_ctx_t   *c_ctx;
-	xmpp_conn_t  *c_conn;
-	const char   *c_host;
-	struct xc_ui *c_ui;
+	xmpp_ctx_t     *c_ctx;
+	xmpp_conn_t    *c_conn;
+	const char     *c_host;
+	unsigned short  c_port;
+	struct xc_ui   *c_ui;
 };
 
 void xc_send(struct xc_ctx *ctx, const char *msg);

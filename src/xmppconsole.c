@@ -32,6 +32,7 @@
 #include "xmpp.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
@@ -40,6 +41,7 @@
 #include <strophe.h>
 
 struct xc_options {
+	unsigned short xo_port;
 	const char *xo_jid;
 	const char *xo_passwd;
 	const char *xo_host;
@@ -92,7 +94,8 @@ static int xc_connect(xmpp_conn_t *conn, struct xc_ctx *ctx)
 {
 	int rc;
 
-	rc = xmpp_connect_client(conn, ctx->c_host, 0, xc_conn_handler, ctx);
+	rc = xmpp_connect_client(conn, ctx->c_host, ctx->c_port,
+				 xc_conn_handler, ctx);
 	if (rc == XMPP_EOK)
 		xc_ui_connecting(ctx->c_ui);
 
@@ -151,6 +154,7 @@ static void xc_usage(FILE *stream, const char *name)
 	fprintf(stream, "Usage: %s [OPTIONS] <JID> <PASSWORD> [HOST]\n", name);
 	fprintf(stream, "OPTIONS:\n"
 			"  --help, -h\t\tPrint this help\n"
+			"  --port, -p <PORT>\tOverride default port number\n"
 			"  --trust-tls-cert, -t\tTrust TLS certificate "
 						"(use at your own risk!)\n"
 			"  --ui, -u <NAME>\tUse specified UI. Available: any, "
@@ -168,14 +172,19 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 {
 	int c;
 	int arg_nr;
+	int base = 10;
+	long tmp_long;
+	char *endptr;
+	const char *tmp_str;
 
 	static struct option long_opts[] = {
 		{ "help", no_argument, 0, 'h' },
+		{ "port", required_argument, 0, 'p' },
 		{ "trust-tls-cert", no_argument, 0, 't' },
 		{ "ui", required_argument, 0, 'u' },
 		{ 0, 0, 0, 0 }
 	};
-	const char *short_opts = "htu:";
+	const char *short_opts = "hp:tu:";
 
 	memset(opts, 0, sizeof(*opts));
 
@@ -188,6 +197,23 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 		case 'h':
 			opts->xo_help = true;
 			return true;
+		case 'p':
+			base = strncmp(optarg, "0x", 2) == 0 ? 16 : 10;
+			tmp_str = base == 16 ? optarg + 2 : optarg;
+			errno = 0;
+			tmp_long = strtol(tmp_str, &endptr, base);
+			if ((errno != 0 && tmp_long == 0) || *endptr != '\0') {
+				fprintf(stderr, "Invalid value for port: %s\n",
+					optarg);
+				return false;
+			}
+			if (tmp_long > 0xffff || tmp_long < 0) {
+				fprintf(stderr, "Port number must be between "
+					"0 and 65535\n");
+				return false;
+			}
+			opts->xo_port = (unsigned short)tmp_long;
+			break;
 		case 't':
 			opts->xo_trust_tls = true;
 			break;
@@ -275,10 +301,11 @@ int main(int argc, char **argv)
 	xmpp_conn_set_flags(xmpp_conn, xmpp_flags);
 	xmpp_conn_set_jid(xmpp_conn, opts.xo_jid);
 	xmpp_conn_set_pass(xmpp_conn, opts.xo_passwd);
-	ctx.c_host = opts.xo_host;
-	ctx.c_ctx  = xmpp_ctx;
-	ctx.c_conn = xmpp_conn;
-	ctx.c_ui   = &ui;
+	ctx.c_host   = opts.xo_host;
+	ctx.c_port   = opts.xo_port;
+	ctx.c_ctx    = xmpp_ctx;
+	ctx.c_conn   = xmpp_conn;
+	ctx.c_ui     = &ui;
 
 	xc_ui_ctx_set(&ui, &ctx);
 	rc = xc_connect(xmpp_conn, &ctx);
