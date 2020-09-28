@@ -31,6 +31,7 @@ struct xc_ctx {
 	const char     *c_host;
 	unsigned short  c_port;
 	struct xc_ui   *c_ui;
+	bool            c_is_raw;
 };
 
 void xc_send(struct xc_ctx *ctx, const char *msg);

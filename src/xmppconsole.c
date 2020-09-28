@@ -48,16 +48,96 @@ struct xc_options {
 	const char *xo_ui;
 	xc_ui_type_t xo_ui_type;
 	bool xo_help;
+	bool xo_raw_mode;
 	bool xo_trust_tls;
 };
 
-#define XC_RECONNECT_TIMER 3000
+#define XC_RECONNECT_TIMER 5000
+#define XC_CONN_RAW_FEATURES_TIMEOUT 5000
 
 static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata);
 
 static bool connected = false;
 static bool signalled = false;
 static bool verbose_level = false;
+
+static int xc_conn_raw_error_handler(xmpp_conn_t *conn,
+				     xmpp_stanza_t *stanza,
+				     void *userdata)
+{
+	xmpp_disconnect(conn);
+	return 0;
+}
+
+static int xc_conn_raw_proceedtls_handler(xmpp_conn_t *conn,
+					  xmpp_stanza_t *stanza,
+					  void *userdata)
+{
+	int rc = -1;
+
+	if (strcmp(xmpp_stanza_get_name(stanza), "proceed") == 0) {
+		rc = xmpp_conn_tls_start(conn);
+		if (rc == 0) {
+			xmpp_handler_delete(conn, xc_conn_raw_error_handler);
+			xmpp_conn_open_stream_default(conn);
+		}
+	}
+
+	/* Failed TLS spoils the connection, so disconnect */
+	if (rc != 0)
+		xmpp_disconnect(conn);
+
+	return 0;
+}
+
+static int xc_conn_raw_missing_features_handler(xmpp_conn_t *conn,
+					        void *userdata)
+{
+	fprintf(stderr, "Error: haven't received features\n");
+	xmpp_disconnect(conn);
+	return 0;
+}
+
+static int xc_conn_raw_features_handler(xmpp_conn_t *conn,
+					xmpp_stanza_t *stanza,
+					void *userdata)
+{
+	struct xc_ctx *ctx = userdata;
+	bool secured = !!xmpp_conn_is_secured(conn);
+	xmpp_stanza_t *child;
+
+	xmpp_timed_handler_delete(conn, xc_conn_raw_missing_features_handler);
+
+	child = xmpp_stanza_get_child_by_name(stanza, "starttls");
+	if (!secured && child != NULL &&
+	    strcmp(xmpp_stanza_get_ns(child), XMPP_NS_TLS) == 0) {
+		child = xmpp_stanza_new(ctx->c_ctx);
+		xmpp_stanza_set_name(child, "starttls");
+		xmpp_stanza_set_ns(child, XMPP_NS_TLS);
+		xmpp_handler_add(conn, xc_conn_raw_proceedtls_handler,
+				 XMPP_NS_TLS, NULL, NULL, userdata);
+		xmpp_send(conn, child);
+		xmpp_stanza_release(child);
+		return 0;
+	}
+
+	xc_ui_connected(ctx->c_ui);
+	connected = true;
+	if (xc_ui_is_done(ctx->c_ui))
+		xmpp_disconnect(conn);
+
+	return 0;
+}
+
+static void xc_handle_connect_raw(xmpp_conn_t *conn, struct xc_ctx *ctx)
+{
+	xmpp_handler_add(conn, xc_conn_raw_error_handler, XMPP_NS_STREAMS,
+			 "error", NULL, ctx);
+	xmpp_handler_add(conn, xc_conn_raw_features_handler, XMPP_NS_STREAMS,
+			 "features", NULL, ctx);
+	xmpp_timed_handler_add(conn, xc_conn_raw_missing_features_handler,
+			       XC_CONN_RAW_FEATURES_TIMEOUT, NULL);
+}
 
 static void xc_conn_handler(xmpp_conn_t         *conn,
 			    xmpp_conn_event_t    status,
@@ -72,12 +152,23 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 	 * When the later happens, don't reconnect.
 	 */
 
-	if (status == XMPP_CONN_CONNECT) {
+	switch (status) {
+	case XMPP_CONN_CONNECT:
+		if (ctx->c_is_raw) {
+			/* Special case for raw mode. */
+			xc_handle_connect_raw(conn, ctx);
+			break;
+		}
 		xc_ui_connected(ctx->c_ui);
 		connected = true;
 		if (xc_ui_is_done(ctx->c_ui))
 			xmpp_disconnect(conn);
-	} else {
+		break;
+	case XMPP_CONN_RAW_CONNECT:
+		assert(ctx->c_is_raw);
+		xmpp_conn_open_stream_default(conn);
+		break;
+	default:
 		xc_ui_disconnected(ctx->c_ui);
 		connected = false;
 		if (signalled || xc_ui_is_done(ctx->c_ui))
@@ -94,8 +185,11 @@ static int xc_connect(xmpp_conn_t *conn, struct xc_ctx *ctx)
 {
 	int rc;
 
-	rc = xmpp_connect_client(conn, ctx->c_host, ctx->c_port,
-				 xc_conn_handler, ctx);
+	rc = ctx->c_is_raw ?
+		xmpp_connect_raw(conn, ctx->c_host, ctx->c_port,
+				 xc_conn_handler, ctx) :
+		xmpp_connect_client(conn, ctx->c_host, ctx->c_port,
+				    xc_conn_handler, ctx);
 	if (rc == XMPP_EOK)
 		xc_ui_connecting(ctx->c_ui);
 
@@ -154,6 +248,8 @@ static void xc_usage(FILE *stream, const char *name)
 	fprintf(stream, "Usage: %s [OPTIONS] <JID> <PASSWORD> [HOST]\n", name);
 	fprintf(stream, "OPTIONS:\n"
 			"  --help, -h\t\tPrint this help\n"
+			"  --noauth, -n\t\tConnect to the server without "
+						"performing authentication\n"
 			"  --port, -p <PORT>\tOverride default port number\n"
 			"  --trust-tls-cert, -t\tTrust TLS certificate "
 						"(use at your own risk!)\n"
@@ -179,12 +275,13 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 
 	static struct option long_opts[] = {
 		{ "help", no_argument, 0, 'h' },
+		{ "noauth", no_argument, 0, 'n' },
 		{ "port", required_argument, 0, 'p' },
 		{ "trust-tls-cert", no_argument, 0, 't' },
 		{ "ui", required_argument, 0, 'u' },
 		{ 0, 0, 0, 0 }
 	};
-	const char *short_opts = "hp:tu:";
+	const char *short_opts = "hnp:tu:";
 
 	memset(opts, 0, sizeof(*opts));
 
@@ -197,6 +294,9 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 		case 'h':
 			opts->xo_help = true;
 			return true;
+		case 'n':
+			opts->xo_raw_mode = true;
+			break;
 		case 'p':
 			base = strncmp(optarg, "0x", 2) == 0 ? 16 : 10;
 			tmp_str = base == 16 ? optarg + 2 : optarg;
@@ -305,6 +405,7 @@ int main(int argc, char **argv)
 	ctx.c_port   = opts.xo_port;
 	ctx.c_ctx    = xmpp_ctx;
 	ctx.c_conn   = xmpp_conn;
+	ctx.c_is_raw = opts.xo_raw_mode;
 	ctx.c_ui     = &ui;
 
 	xc_ui_ctx_set(&ui, &ctx);
