@@ -19,10 +19,11 @@ The straightforward way to run xmppconsole is to provide your JID and password:
 xmppconsole name@domain.com password
 ```
 
-xmppconsole has several options which you can review with `--help` argument.
+xmppconsole has multiple options which you can review with `--help` argument.
 It allows you to connect to a server with misconfigured TLS and/or DNS record.
-Also, you can connect to a server anonymously if the server supports the
-authentication mechanism.
+Also, you can connect to a server anonymously if the server supports this.
+Or you can even start working with XMPP connection before authentication and
+debug in-band registration or authentication mechanisms.
 
 By default, xmppconsole detects whether it can run with graphical interface and
 falls back to a text interface otherwise:
