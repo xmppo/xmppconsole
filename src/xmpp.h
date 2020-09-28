@@ -32,6 +32,7 @@ struct xc_ctx {
 	unsigned short  c_port;
 	struct xc_ui   *c_ui;
 	bool            c_is_raw;
+	bool            c_tls_disable;
 };
 
 void xc_send(struct xc_ctx *ctx, const char *msg);

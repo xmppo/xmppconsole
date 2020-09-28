@@ -50,7 +50,8 @@ struct xc_options {
 	xc_ui_type_t xo_ui_type;
 	bool xo_help;
 	bool xo_raw_mode;
-	bool xo_trust_tls;
+	bool xo_tls_disable;
+	bool xo_tls_trust;
 };
 
 #define XC_RECONNECT_TIMER 5000
@@ -109,8 +110,9 @@ static int xc_conn_raw_features_handler(xmpp_conn_t *conn,
 
 	xmpp_timed_handler_delete(conn, xc_conn_raw_missing_features_handler);
 
+	/* Establish TLS session if it is supported and not disabled */
 	child = xmpp_stanza_get_child_by_name(stanza, "starttls");
-	if (!secured && child != NULL &&
+	if (!ctx->c_tls_disable && !secured && child != NULL &&
 	    xc_streq(xmpp_stanza_get_ns(child), XMPP_NS_TLS)) {
 		child = xmpp_stanza_new(ctx->c_ctx);
 		xmpp_stanza_set_name(child, "starttls");
@@ -252,8 +254,8 @@ static void xc_usage(FILE *stream, const char *name)
 			"  --noauth, -n\t\tConnect to the server without "
 						"performing authentication\n"
 			"  --port, -p <PORT>\tOverride default port number\n"
-			"  --trust-tls-cert, -t\tTrust TLS certificate "
-						"(use at your own risk!)\n"
+			"  --trust-tls-cert, -t\tTrust invalid TLS certificates\n"
+			"  --disable-tls\t\tDon't establish TLS session\n"
 			"  --ui, -u <NAME>\tUse specified UI. Available: any, "
 #ifdef BUILD_UI_GTK
 			"gtk, "
@@ -273,8 +275,10 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 	long tmp_long;
 	char *endptr;
 	const char *tmp_str;
+	const char *name;
 
 	static struct option long_opts[] = {
+		{ "disable-tls", no_argument, 0, 0 },
 		{ "help", no_argument, 0, 'h' },
 		{ "noauth", no_argument, 0, 'n' },
 		{ "port", required_argument, 0, 'p' },
@@ -316,10 +320,18 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 			opts->xo_port = (unsigned short)tmp_long;
 			break;
 		case 't':
-			opts->xo_trust_tls = true;
+			opts->xo_tls_trust = true;
 			break;
 		case 'u':
 			opts->xo_ui = optarg;
+			break;
+		case 0:
+			/* Long only options */
+			assert(index < ARRAY_SIZE(long_opts));
+			name = long_opts[index].name;
+			if (xc_streq(name, "disable-tls")) {
+				opts->xo_tls_disable = true;
+			}
 			break;
 		default:
 			return false;
@@ -397,17 +409,19 @@ int main(int argc, char **argv)
 	assert(xmpp_ctx != NULL);
 	xmpp_conn = xmpp_conn_new(xmpp_ctx);
 	assert(xmpp_conn != NULL);
-	xmpp_flags = opts.xo_trust_tls ? XMPP_CONN_FLAG_TRUST_TLS :
-					 XMPP_CONN_FLAG_MANDATORY_TLS;
+	xmpp_flags = opts.xo_tls_disable ? XMPP_CONN_FLAG_DISABLE_TLS :
+		     opts.xo_tls_trust ?   XMPP_CONN_FLAG_TRUST_TLS :
+					   XMPP_CONN_FLAG_MANDATORY_TLS;
 	xmpp_conn_set_flags(xmpp_conn, xmpp_flags);
 	xmpp_conn_set_jid(xmpp_conn, opts.xo_jid);
 	xmpp_conn_set_pass(xmpp_conn, opts.xo_passwd);
-	ctx.c_host   = opts.xo_host;
-	ctx.c_port   = opts.xo_port;
-	ctx.c_ctx    = xmpp_ctx;
-	ctx.c_conn   = xmpp_conn;
-	ctx.c_is_raw = opts.xo_raw_mode;
-	ctx.c_ui     = &ui;
+	ctx.c_host        = opts.xo_host;
+	ctx.c_port        = opts.xo_port;
+	ctx.c_ctx         = xmpp_ctx;
+	ctx.c_conn        = xmpp_conn;
+	ctx.c_is_raw      = opts.xo_raw_mode;
+	ctx.c_tls_disable = opts.xo_tls_disable;
+	ctx.c_ui          = &ui;
 
 	xc_ui_ctx_set(&ui, &ctx);
 	rc = xc_connect(xmpp_conn, &ctx);
