@@ -12,6 +12,7 @@ xmppconsole_SOURCES = \
 
 xmppconsole_SOURCES += \
 	src/list.h \
+	src/misc.h \
 	src/ui.h \
 	src/ui_console.h \
 	src/ui_gtk.h \

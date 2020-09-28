@@ -17,6 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "misc.h"
 #include "ui.h"
 #include "xmpp.h"
 
@@ -26,10 +27,6 @@
 #include "ui_ncurses.h"
 
 #include <string.h>
-
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-#endif
 
 static const struct {
 	const char *name;
