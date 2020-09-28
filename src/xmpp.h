@@ -33,6 +33,7 @@ struct xc_ctx {
 	struct xc_ui   *c_ui;
 	bool            c_is_raw;
 	bool            c_tls_disable;
+	bool            c_tls_legacy;
 };
 
 void xc_send(struct xc_ctx *ctx, const char *msg);

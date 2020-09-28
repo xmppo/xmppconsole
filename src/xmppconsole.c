@@ -51,6 +51,7 @@ struct xc_options {
 	bool xo_help;
 	bool xo_raw_mode;
 	bool xo_tls_disable;
+	bool xo_tls_legacy;
 	bool xo_tls_trust;
 };
 
@@ -169,6 +170,15 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 		break;
 	case XMPP_CONN_RAW_CONNECT:
 		assert(ctx->c_is_raw);
+		if (ctx->c_tls_legacy && !ctx->c_tls_disable) {
+			int rc;
+
+			rc = xmpp_conn_tls_start(conn);
+			if (rc != 0) {
+				xmpp_disconnect(conn);
+				break;
+			}
+		}
 		xmpp_conn_open_stream_default(conn);
 		break;
 	default:
@@ -256,6 +266,8 @@ static void xc_usage(FILE *stream, const char *name)
 			"  --port, -p <PORT>\tOverride default port number\n"
 			"  --trust-tls-cert, -t\tTrust invalid TLS certificates\n"
 			"  --disable-tls\t\tDon't establish TLS session\n"
+			"  --legacy-ssl\t\tLegacy SSL mode (without STARTTLS "
+								"support)\n"
 			"  --ui, -u <NAME>\tUse specified UI. Available: any, "
 #ifdef BUILD_UI_GTK
 			"gtk, "
@@ -280,6 +292,7 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 	static struct option long_opts[] = {
 		{ "disable-tls", no_argument, 0, 0 },
 		{ "help", no_argument, 0, 'h' },
+		{ "legacy-ssl", no_argument, 0, 0 },
 		{ "noauth", no_argument, 0, 'n' },
 		{ "port", required_argument, 0, 'p' },
 		{ "trust-tls-cert", no_argument, 0, 't' },
@@ -331,6 +344,8 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 			name = long_opts[index].name;
 			if (xc_streq(name, "disable-tls")) {
 				opts->xo_tls_disable = true;
+			} else if (xc_streq(name, "legacy-ssl")) {
+				opts->xo_tls_legacy = true;
 			}
 			break;
 		default:
@@ -412,6 +427,7 @@ int main(int argc, char **argv)
 	xmpp_flags = opts.xo_tls_disable ? XMPP_CONN_FLAG_DISABLE_TLS :
 		     opts.xo_tls_trust ?   XMPP_CONN_FLAG_TRUST_TLS :
 					   XMPP_CONN_FLAG_MANDATORY_TLS;
+	xmpp_flags |= opts.xo_tls_legacy ? XMPP_CONN_FLAG_LEGACY_SSL : 0;
 	xmpp_conn_set_flags(xmpp_conn, xmpp_flags);
 	xmpp_conn_set_jid(xmpp_conn, opts.xo_jid);
 	xmpp_conn_set_pass(xmpp_conn, opts.xo_passwd);
@@ -421,6 +437,7 @@ int main(int argc, char **argv)
 	ctx.c_conn        = xmpp_conn;
 	ctx.c_is_raw      = opts.xo_raw_mode;
 	ctx.c_tls_disable = opts.xo_tls_disable;
+	ctx.c_tls_legacy  = opts.xo_tls_legacy;
 	ctx.c_ui          = &ui;
 
 	xc_ui_ctx_set(&ui, &ctx);
