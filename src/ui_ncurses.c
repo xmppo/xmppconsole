@@ -287,17 +287,12 @@ static void ui_ncurses_input_cb(char *line)
 	}
 }
 
-static int ui_ncurses_scrollup_cb(int _x1, int _x2)
+static void ui_ncurses_scrollup(size_t nr)
 {
 	struct xc_ui_ncurses *priv = g_ui->ui_priv;
 	size_t rows;
-	size_t nr;
 	size_t i;
 
-	/* How many lines to scroll. Scroll by 1 for very small window. */
-	nr = XC_LOG_ROWS <= 0 ? 1 : (size_t)XC_LOG_ROWS;
-	/* Scroll by a half of the window. */
-	nr = (nr + 1) / 2;
 	rows = XC_LOG_ROWS < 0 ? 0 : (size_t)XC_LOG_ROWS;
 
 	if (!priv->paged) {
@@ -324,22 +319,15 @@ static int ui_ncurses_scrollup_cb(int _x1, int _x2)
 	}
 
 	ui_ncurses_redisplay_log(priv);
-
-	return 0;
 }
 
-static int ui_ncurses_scrolldown_cb(int _x1, int _x2)
+static void ui_ncurses_scrolldown(size_t nr)
 {
 	struct xc_ui_ncurses *priv = g_ui->ui_priv;
 	struct ui_ncurses_line *p;
 	size_t rows;
-	size_t nr;
 	size_t i;
 
-	/* How many lines to scroll. Scroll by 1 for very small window. */
-	nr = XC_LOG_ROWS <= 0 ? 1 : (size_t)XC_LOG_ROWS;
-	/* Scroll by a half of the window. */
-	nr = (nr + 1) / 2;
 	rows = XC_LOG_ROWS < 0 ? 0 : (size_t)XC_LOG_ROWS;
 
 	if (priv->paged) {
@@ -361,15 +349,66 @@ static int ui_ncurses_scrolldown_cb(int _x1, int _x2)
 	}
 
 	ui_ncurses_redisplay_log(priv);
+}
 
+static int ui_ncurses_pageup_cb()
+{
+	size_t nr;
+
+	/* How many lines to scroll. Scroll by 1 for very small window. */
+	nr = XC_LOG_ROWS <= 0 ? 1 : (size_t)XC_LOG_ROWS;
+	/* Scroll by a half of the window. */
+	nr = (nr + 1) / 2;
+	ui_ncurses_scrollup(nr);
+
+	return 0;
+}
+
+static int ui_ncurses_pagedown_cb()
+{
+	size_t nr;
+
+	/* How many lines to scroll. Scroll by 1 for very small window. */
+	nr = XC_LOG_ROWS <= 0 ? 1 : (size_t)XC_LOG_ROWS;
+	/* Scroll by a half of the window. */
+	nr = (nr + 1) / 2;
+	ui_ncurses_scrolldown(nr);
+
+	return 0;
+}
+
+static int ui_ncurses_up_cb()
+{
+	ui_ncurses_scrollup(1);
+	return 0;
+}
+
+static int ui_ncurses_down_cb()
+{
+	ui_ncurses_scrolldown(1);
 	return 0;
 }
 
 static void ui_ncurses_rl_init(void)
 {
 	rl_bind_key ('\t', rl_insert);
-	rl_bind_keyseq("\\e[5~", ui_ncurses_scrollup_cb);
-	rl_bind_keyseq("\\e[6~", ui_ncurses_scrolldown_cb);
+	/* PageUp and PageDown. Doesn't work... */
+	rl_bind_keyseq("\\e[5~", ui_ncurses_pageup_cb);
+	rl_bind_keyseq("\\e[6~", ui_ncurses_pagedown_cb);
+#if 0
+	/*
+	 * These bindings are for UP and DOWN arrows, enabling them
+	 * will break history scrolling.
+	 */
+	rl_bind_keyseq("\\e[A", ui_ncurses_up_cb);
+	rl_bind_keyseq("\\e[B", ui_ncurses_down_cb);
+#endif
+	/* Mouse wheel in some terminals. */
+	rl_bind_keyseq("\\eOA", ui_ncurses_up_cb);
+	rl_bind_keyseq("\\eOB", ui_ncurses_down_cb);
+	/* Ctrl + arrows */
+	rl_bind_keyseq("\\e[1;5A", ui_ncurses_up_cb);
+	rl_bind_keyseq("\\e[1;5B", ui_ncurses_down_cb);
 
 	rl_catch_signals = 0;
 	rl_catch_sigwinch = 0;
