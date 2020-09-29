@@ -92,6 +92,52 @@ static void ui_gtk_title(struct xc_ui_gtk *ui_gtk, const gchar *title)
 		gtk_window_set_title(GTK_WINDOW(ui_gtk->uig_window), title);
 }
 
+static gboolean ui_gtk_dialog_input_cb(GObject *obj,
+				       GdkEventKey *event,
+				       gpointer data)
+{
+	GtkWidget *dialog = data;
+
+	if (event->keyval == GDK_KEY_Return) {
+		gtk_dialog_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+static char *ui_gtk_dialog_password(struct xc_ui *ui)
+{
+	struct xc_ui_gtk *ui_gtk = ui->ui_priv;
+	GtkWidget        *window = ui_gtk->uig_window;
+	GtkWidget        *dialog;
+	GtkWidget        *dialog_entry;
+	GtkWidget        *dialog_box;
+	char             *password = NULL;
+	gint              response;
+
+	dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+					GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+					GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL,
+					"Enter password");
+	dialog_box = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+	dialog_entry = gtk_entry_new();
+	gtk_window_set_title(GTK_WINDOW(dialog), "Enter password");
+	gtk_widget_set_size_request(dialog_entry, 250, 0);
+	gtk_entry_set_visibility(GTK_ENTRY(dialog_entry), FALSE);
+	gtk_entry_set_invisible_char(GTK_ENTRY(dialog_entry), '*');
+	gtk_box_pack_end(GTK_BOX(dialog_box), dialog_entry, FALSE, FALSE, 0);
+	g_signal_connect(G_OBJECT(dialog_entry), "key-press-event",
+			 G_CALLBACK(ui_gtk_dialog_input_cb), dialog);
+	gtk_widget_show_all(dialog);
+	response = gtk_dialog_run(GTK_DIALOG(dialog));
+	if (response == GTK_RESPONSE_OK || response == GTK_RESPONSE_ACCEPT) {
+		password = strdup(gtk_entry_get_text(GTK_ENTRY(dialog_entry)));
+	}
+	gtk_widget_destroy(dialog);
+
+	return password;
+}
+
 static int ui_gtk_init(struct xc_ui *ui)
 {
 	struct xc_ui_gtk         *ui_gtk;
