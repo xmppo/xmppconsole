@@ -276,6 +276,7 @@ static void xc_usage(FILE *stream, const char *name)
 			"ncurses, "
 #endif
 			"console.\n"
+			"  --verbose, -v\t\tPrint debug messages\n"
 		);
 }
 
@@ -297,9 +298,10 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 		{ "port", required_argument, 0, 'p' },
 		{ "trust-tls-cert", no_argument, 0, 't' },
 		{ "ui", required_argument, 0, 'u' },
+		{ "verbose", no_argument, 0, 'v' },
 		{ 0, 0, 0, 0 }
 	};
-	const char *short_opts = "hnp:tu:";
+	const char *short_opts = "hnp:tu:v";
 
 	memset(opts, 0, sizeof(*opts));
 
@@ -337,6 +339,9 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 			break;
 		case 'u':
 			opts->xo_ui = optarg;
+			break;
+		case 'v':
+			verbose_level = true;
 			break;
 		case 0:
 			/* Long only options */
@@ -414,6 +419,10 @@ int main(int argc, char **argv)
 
 	rc = xc_ui_init(&ui, opts.xo_ui_type);
 	assert(rc == 0);
+	if (xc_ui_type(&ui) != XC_UI_GTK) {
+		/* Debug logs can break a text UI. */
+		verbose_level = false;
+	}
 
 	log = (xmpp_log_t){
 		.handler = &xc_log_cb,

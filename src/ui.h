@@ -61,6 +61,7 @@ struct xc_ui_ops {
 };
 
 xc_ui_type_t xc_ui_name_to_type(const char *name);
+xc_ui_type_t xc_ui_type(struct xc_ui *ui);
 
 int  xc_ui_init(struct xc_ui *ui, xc_ui_type_t type);
 void xc_ui_fini(struct xc_ui *ui);

@@ -61,6 +61,24 @@ xc_ui_type_t xc_ui_name_to_type(const char *name)
 	return result;
 }
 
+xc_ui_type_t xc_ui_type(struct xc_ui *ui)
+{
+	/*
+	 * TODO Make an array of all UI modules with descriptions like
+	 * name, type, pointer to the ops structure. Then rewrite xc_ui_type()
+	 * and xc_ui_init() to work with the array without hardcoding
+	 * knowledge of existing modules.
+	 */
+	if (ui->ui_ops == &xc_ui_ops_gtk)
+		return XC_UI_GTK;
+	else if (ui->ui_ops == &xc_ui_ops_ncurses)
+		return XC_UI_NCURSES;
+	else if (ui->ui_ops == &xc_ui_ops_console)
+		return XC_UI_CONSOLE;
+	else
+		return XC_UI_ERROR;
+}
+
 int xc_ui_init(struct xc_ui *ui, xc_ui_type_t type)
 {
 	int rc = -1;
