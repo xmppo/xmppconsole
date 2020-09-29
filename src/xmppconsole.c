@@ -60,7 +60,6 @@ struct xc_options {
 
 static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata);
 
-static bool connected = false;
 static bool signalled = false;
 static bool verbose_level = false;
 
@@ -126,7 +125,6 @@ static int xc_conn_raw_features_handler(xmpp_conn_t *conn,
 	}
 
 	xc_ui_connected(ctx->c_ui);
-	connected = true;
 	if (xc_ui_is_done(ctx->c_ui))
 		xmpp_disconnect(conn);
 
@@ -164,7 +162,6 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 			break;
 		}
 		xc_ui_connected(ctx->c_ui);
-		connected = true;
 		if (xc_ui_is_done(ctx->c_ui))
 			xmpp_disconnect(conn);
 		break;
@@ -183,7 +180,6 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 		break;
 	default:
 		xc_ui_disconnected(ctx->c_ui);
-		connected = false;
 		if (signalled || xc_ui_is_done(ctx->c_ui))
 			xc_ui_quit(ctx->c_ui);
 		else {
@@ -249,8 +245,7 @@ void xc_send(struct xc_ctx *ctx, const char *msg)
 
 void xc_quit(struct xc_ctx *ctx)
 {
-	/* TODO: Replace with xmpp_conn_is_connected() for libstrophe-0.10 */
-	if (connected)
+	if (xmpp_conn_is_connected(ctx->c_conn))
 		xmpp_disconnect(ctx->c_conn);
 	else
 		xc_ui_quit(ctx->c_ui);
