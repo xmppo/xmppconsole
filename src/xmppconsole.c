@@ -253,9 +253,11 @@ void xc_quit(struct xc_ctx *ctx)
 
 static void xc_usage(FILE *stream, const char *name)
 {
-	fprintf(stream, "Usage: %s [OPTIONS] <JID> <PASSWORD> [HOST]\n", name);
+	fprintf(stream, "Usage: %s [OPTIONS] <JID> [PASSWORD]\n", name);
 	fprintf(stream, "OPTIONS:\n"
-			"  --help, -h\t\tPrint this help\n"
+			"  --help\t\tPrint this help\n"
+			"  --host, -h <HOST>\tConnect to the host instead of "
+								"domain\n"
 			"  --noauth, -n\t\tConnect to the server without "
 						"performing authentication\n"
 			"  --port, -p <PORT>\tOverride default port number\n"
@@ -287,7 +289,8 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 
 	static struct option long_opts[] = {
 		{ "disable-tls", no_argument, 0, 0 },
-		{ "help", no_argument, 0, 'h' },
+		{ "help", no_argument, 0, 0 },
+		{ "host", no_argument, 0, 'h' },
 		{ "legacy-ssl", no_argument, 0, 0 },
 		{ "noauth", no_argument, 0, 'n' },
 		{ "port", required_argument, 0, 'p' },
@@ -296,7 +299,7 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 		{ "verbose", no_argument, 0, 'v' },
 		{ 0, 0, 0, 0 }
 	};
-	const char *short_opts = "hnp:tu:v";
+	const char *short_opts = "h:np:tu:v";
 
 	memset(opts, 0, sizeof(*opts));
 
@@ -307,8 +310,8 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 			break;
 		switch (c) {
 		case 'h':
-			opts->xo_help = true;
-			return true;
+			opts->xo_host = optarg;
+			break;
 		case 'n':
 			opts->xo_raw_mode = true;
 			break;
@@ -342,7 +345,10 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 			/* Long only options */
 			assert(index < ARRAY_SIZE(long_opts));
 			name = long_opts[index].name;
-			if (xc_streq(name, "disable-tls")) {
+			if (xc_streq(name, "help")) {
+				opts->xo_help = true;
+				return true;
+			} else if (xc_streq(name, "disable-tls")) {
 				opts->xo_tls_disable = true;
 			} else if (xc_streq(name, "legacy-ssl")) {
 				opts->xo_tls_legacy = true;
@@ -354,13 +360,12 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 	}
 
 	arg_nr = argc - optind;
-	if (arg_nr < 2 || arg_nr > 3)
+	if (arg_nr < 1 || arg_nr > 2)
 		return false;
 
 	opts->xo_jid = argv[optind];
-	opts->xo_passwd = argv[optind + 1];
-	if (arg_nr > 2)
-		opts->xo_host = argv[optind + 2];
+	if (arg_nr > 1)
+		opts->xo_passwd = argv[optind + 1];
 
 	/* Parse UI string */
 	opts->xo_ui_type = xc_ui_name_to_type(opts->xo_ui);
