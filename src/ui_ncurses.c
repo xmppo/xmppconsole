@@ -458,6 +458,10 @@ static int ui_ncurses_init(struct xc_ui *ui)
 	priv->last_status = "";
 	ui->ui_priv = priv;
 
+	wrefresh(priv->win_log);
+	ui_ncurses_redisplay_sep(priv);
+	wrefresh(priv->win_inp);
+
 	return 0;
 }
 
@@ -474,6 +478,50 @@ static void ui_ncurses_fini(struct xc_ui *ui)
 	delwin(priv->win_log);
 	endwin();
 	free(priv);
+}
+
+static int ui_ncurses_get_passwd(struct xc_ui *ui, char **out)
+{
+	struct xc_ui_ncurses *priv = ui->ui_priv;
+	bool                  ready = false;
+	char                  passwd[256];
+	int                   i = 0;
+	int                   c;
+
+	ui_ncurses_status_set(priv, "Enter password: ");
+
+	keypad(priv->win_sep, TRUE);
+	notimeout(priv->win_sep, TRUE);
+	while (!ready) {
+		c = wgetch(priv->win_sep);
+		switch (c) {
+		case ERR:
+			assert(0);
+		case 13:
+			passwd[i] = '\0';
+			ready = true;
+			break;
+		case 27:
+			i = 0;
+			ready = true;
+			break;
+		case 127:
+			if (i > 0)
+				--i;
+			break;
+		default:
+			if (c < 256 && i + 1 < (int)sizeof(passwd))
+				passwd[i++] = (char)c;
+		}
+	}
+
+	ui_ncurses_status_set(priv, "");
+	notimeout(priv->win_sep, FALSE);
+	keypad(priv->win_sep, FALSE);
+	*out = i > 0 ? strdup(passwd) : NULL;
+	memset(passwd, 0, sizeof(passwd));
+
+	return 0;
 }
 
 static void ui_ncurses_state_set(struct xc_ui *ui, xc_ui_state_t state)
@@ -590,13 +638,14 @@ static void ui_ncurses_quit(struct xc_ui *ui)
 }
 
 struct xc_ui_ops xc_ui_ops_ncurses = {
-	.uio_init      = ui_ncurses_init,
-	.uio_fini      = ui_ncurses_fini,
-	.uio_state_set = ui_ncurses_state_set,
-	.uio_run       = ui_ncurses_run,
-	.uio_print     = ui_ncurses_print,
-	.uio_is_done   = ui_ncurses_is_done,
-	.uio_quit      = ui_ncurses_quit,
+	.uio_init       = ui_ncurses_init,
+	.uio_fini       = ui_ncurses_fini,
+	.uio_get_passwd = ui_ncurses_get_passwd,
+	.uio_state_set  = ui_ncurses_state_set,
+	.uio_run        = ui_ncurses_run,
+	.uio_print      = ui_ncurses_print,
+	.uio_is_done    = ui_ncurses_is_done,
+	.uio_quit       = ui_ncurses_quit,
 };
 
 #undef XC_LOG_ROWS
