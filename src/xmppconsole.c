@@ -151,7 +151,8 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 
 	/*
 	 * TODO Distinguish between network issues and authentication error.
-	 * When the later happens, don't reconnect.
+	 * In case of an authentication error, ask user to type new password
+	 * in UI.
 	 */
 
 	switch (status) {
