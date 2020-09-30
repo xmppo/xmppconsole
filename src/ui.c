@@ -116,6 +116,11 @@ void xc_ui_ctx_set(struct xc_ui *ui, struct xc_ctx *ctx)
 	ui->ui_ops->uio_state_set(ui, XC_UI_INITED);
 }
 
+int xc_ui_get_passwd(struct xc_ui *ui, char **out)
+{
+	return ui->ui_ops->uio_get_passwd(ui, out);
+}
+
 void xc_ui_connecting(struct xc_ui *ui)
 {
 	ui->ui_ops->uio_state_set(ui, XC_UI_CONNECTING);

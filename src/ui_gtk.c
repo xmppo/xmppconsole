@@ -210,6 +210,13 @@ static void ui_gtk_fini(struct xc_ui *ui)
 	ui->ui_priv = NULL;
 }
 
+static int ui_gtk_get_passwd(struct xc_ui *ui, char **out)
+{
+	/* TODO Handle errors. */
+	*out = ui_gtk_dialog_password(ui);
+	return 0;
+}
+
 static void ui_gtk_inited(struct xc_ui *ui)
 {
 	struct xc_ui_gtk *ui_gtk = ui->ui_priv;
@@ -289,13 +296,14 @@ static void ui_gtk_quit(struct xc_ui *ui)
 }
 
 struct xc_ui_ops xc_ui_ops_gtk = {
-	.uio_init      = ui_gtk_init,
-	.uio_fini      = ui_gtk_fini,
-	.uio_state_set = ui_gtk_state_set,
-	.uio_run       = ui_gtk_run,
-	.uio_print     = ui_gtk_print,
-	.uio_is_done   = ui_gtk_is_done,
-	.uio_quit      = ui_gtk_quit,
+	.uio_init       = ui_gtk_init,
+	.uio_fini       = ui_gtk_fini,
+	.uio_get_passwd = ui_gtk_get_passwd,
+	.uio_state_set  = ui_gtk_state_set,
+	.uio_run        = ui_gtk_run,
+	.uio_print      = ui_gtk_print,
+	.uio_is_done    = ui_gtk_is_done,
+	.uio_quit       = ui_gtk_quit,
 };
 
 #endif /* BUILD_UI_GTK */

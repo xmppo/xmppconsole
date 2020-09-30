@@ -53,6 +53,7 @@ struct xc_ui {
 struct xc_ui_ops {
 	int  (*uio_init)(struct xc_ui *ui);
 	void (*uio_fini)(struct xc_ui *ui);
+	int  (*uio_get_passwd)(struct xc_ui *ui, char **out);
 	void (*uio_state_set)(struct xc_ui *ui, xc_ui_state_t state);
 	void (*uio_run)(struct xc_ui *ui);
 	void (*uio_print)(struct xc_ui *ui, const char *msg);
@@ -66,6 +67,7 @@ xc_ui_type_t xc_ui_type(struct xc_ui *ui);
 int  xc_ui_init(struct xc_ui *ui, xc_ui_type_t type);
 void xc_ui_fini(struct xc_ui *ui);
 void xc_ui_ctx_set(struct xc_ui *ui, struct xc_ctx *ctx);
+int  xc_ui_get_passwd(struct xc_ui *ui, char **out);
 void xc_ui_connecting(struct xc_ui *ui);
 void xc_ui_connected(struct xc_ui *ui);
 void xc_ui_disconnecting(struct xc_ui *ui);
