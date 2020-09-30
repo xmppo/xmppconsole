@@ -48,6 +48,33 @@ static void ui_console_fini(struct xc_ui *ui)
 {
 }
 
+static int ui_console_get_passwd(struct xc_ui *ui, char **out)
+{
+	char    *line = NULL;
+	size_t   len = 0;
+	ssize_t  rlen;
+
+	printf("Enter password: ");
+
+	rlen = getline(&line, &len, stdin);
+	if (rlen == -1 && errno == 0) {
+		/* Consider this scenario as Ctrl+D. */
+		free(line);
+		line = NULL;
+	}
+	if (rlen > 0) {
+		if (line[rlen - 1] == '\n')
+			line[rlen - 1] = '\0';
+		if (*line == '\0') {
+			free(line);
+			line = NULL;
+		}
+	}
+
+	*out = line;
+	return 0;
+}
+
 static void ui_console_state_set(struct xc_ui *ui, xc_ui_state_t state)
 {
 	switch (state) {
@@ -137,11 +164,12 @@ static void ui_console_quit(struct xc_ui *ui)
 }
 
 struct xc_ui_ops xc_ui_ops_console = {
-	.uio_init      = ui_console_init,
-	.uio_fini      = ui_console_fini,
-	.uio_state_set = ui_console_state_set,
-	.uio_run       = ui_console_run,
-	.uio_print     = ui_console_print,
-	.uio_is_done   = ui_console_is_done,
-	.uio_quit      = ui_console_quit,
+	.uio_init       = ui_console_init,
+	.uio_fini       = ui_console_fini,
+	.uio_get_passwd = ui_console_get_passwd,
+	.uio_state_set  = ui_console_state_set,
+	.uio_run        = ui_console_run,
+	.uio_print      = ui_console_print,
+	.uio_is_done    = ui_console_is_done,
+	.uio_quit       = ui_console_quit,
 };
