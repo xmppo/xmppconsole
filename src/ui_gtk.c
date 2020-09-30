@@ -123,9 +123,13 @@ static char *ui_gtk_dialog_password(struct xc_ui *ui)
 	dialog_entry = gtk_entry_new();
 	gtk_window_set_title(GTK_WINDOW(dialog), "Enter password");
 	gtk_widget_set_size_request(dialog_entry, 250, 0);
+	gtk_entry_set_input_purpose(GTK_ENTRY(dialog_entry),
+				    GTK_INPUT_PURPOSE_PASSWORD);
 	gtk_entry_set_visibility(GTK_ENTRY(dialog_entry), FALSE);
 	gtk_entry_set_invisible_char(GTK_ENTRY(dialog_entry), '*');
 	gtk_box_pack_end(GTK_BOX(dialog_box), dialog_entry, FALSE, FALSE, 0);
+	gtk_window_set_transient_for(GTK_WINDOW(dialog), GTK_WINDOW(window));
+	gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
 	g_signal_connect(G_OBJECT(dialog_entry), "key-press-event",
 			 G_CALLBACK(ui_gtk_dialog_input_cb), dialog);
 	gtk_widget_show_all(dialog);
@@ -201,6 +205,13 @@ static int ui_gtk_init(struct xc_ui *ui)
 
 	ui->ui_priv = ui_gtk;
 
+	g_signal_connect(G_OBJECT(window), "destroy",
+			 G_CALLBACK(ui_gtk_quit_cb), ui);
+	g_signal_connect(G_OBJECT(input), "key-press-event",
+			 G_CALLBACK(ui_gtk_input_cb), ui);
+	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
+	gtk_widget_show_all(window);
+
 	return 0;
 }
 
@@ -217,17 +228,6 @@ static int ui_gtk_get_passwd(struct xc_ui *ui, char **out)
 	return 0;
 }
 
-static void ui_gtk_inited(struct xc_ui *ui)
-{
-	struct xc_ui_gtk *ui_gtk = ui->ui_priv;
-
-	g_signal_connect(G_OBJECT(ui_gtk->uig_window), "destroy",
-			 G_CALLBACK(ui_gtk_quit_cb), ui);
-	g_signal_connect(G_OBJECT(ui_gtk->uig_input), "key-press-event",
-			 G_CALLBACK(ui_gtk_input_cb), ui);
-	gtk_widget_show_all(ui_gtk->uig_window);
-}
-
 static void ui_gtk_state_set(struct xc_ui *ui, xc_ui_state_t state)
 {
 	struct xc_ui_gtk *ui_gtk = ui->ui_priv;
@@ -241,7 +241,6 @@ static void ui_gtk_state_set(struct xc_ui *ui, xc_ui_state_t state)
 		/* Must not happen. */
 		break;
 	case XC_UI_INITED:
-		ui_gtk_inited(ui);
 		break;
 	case XC_UI_CONNECTING:
 		ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT " (Connecting...)");
