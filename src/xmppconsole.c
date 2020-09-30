@@ -400,6 +400,7 @@ int main(int argc, char **argv)
 	xmpp_log_t        log;
 	xmpp_ctx_t       *xmpp_ctx;
 	xmpp_conn_t      *xmpp_conn;
+	char             *passwd;
 	long              xmpp_flags;
 	bool              result;
 	int               rc;
@@ -412,10 +413,6 @@ int main(int argc, char **argv)
 			 argc > 0 ? argv[0] : "xmppconsole");
 		exit(result ? EXIT_SUCCESS : EXIT_FAILURE);
 	}
-
-	/*
-	 * TODO Let user type JID/password in UI.
-	 */
 
 	rc = xc_ui_init(&ui, opts.xo_ui_type);
 	assert(rc == 0);
@@ -433,13 +430,31 @@ int main(int argc, char **argv)
 	assert(xmpp_ctx != NULL);
 	xmpp_conn = xmpp_conn_new(xmpp_ctx);
 	assert(xmpp_conn != NULL);
+
+	/* Check password. */
+	if (opts.xo_passwd == NULL) {
+		char *node = xmpp_jid_node(xmpp_ctx, opts.xo_jid);
+
+		passwd = NULL;
+		if (node != NULL) {
+			(void)xc_ui_get_passwd(&ui, &passwd);
+			xmpp_free(xmpp_ctx, node);
+		}
+	} else {
+		passwd = strdup(opts.xo_passwd);
+	}
+
 	xmpp_flags = opts.xo_tls_disable ? XMPP_CONN_FLAG_DISABLE_TLS :
 		     opts.xo_tls_trust ?   XMPP_CONN_FLAG_TRUST_TLS :
 					   XMPP_CONN_FLAG_MANDATORY_TLS;
 	xmpp_flags |= opts.xo_tls_legacy ? XMPP_CONN_FLAG_LEGACY_SSL : 0;
 	xmpp_conn_set_flags(xmpp_conn, xmpp_flags);
 	xmpp_conn_set_jid(xmpp_conn, opts.xo_jid);
-	xmpp_conn_set_pass(xmpp_conn, opts.xo_passwd);
+	xmpp_conn_set_pass(xmpp_conn, passwd);
+	if (passwd != NULL) {
+		memset(passwd, 0, strlen(passwd));
+		free(passwd);
+	}
 	ctx.c_host        = opts.xo_host;
 	ctx.c_port        = opts.xo_port;
 	ctx.c_ctx         = xmpp_ctx;
