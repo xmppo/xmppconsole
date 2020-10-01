@@ -447,7 +447,7 @@ int main(int argc, char **argv)
 		char *node = xmpp_jid_node(xmpp_ctx, opts.xo_jid);
 
 		passwd = NULL;
-		if (node != NULL) {
+		if (node != NULL && !opts.xo_raw_mode) {
 			(void)xc_ui_get_passwd(&ui, &passwd);
 			xmpp_free(xmpp_ctx, node);
 		}
