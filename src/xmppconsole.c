@@ -48,6 +48,7 @@ struct xc_options {
 	const char *xo_host;
 	const char *xo_ui;
 	xc_ui_type_t xo_ui_type;
+	bool xo_auth_legacy;
 	bool xo_help;
 	bool xo_raw_mode;
 	bool xo_tls_disable;
@@ -266,6 +267,7 @@ static void xc_usage(FILE *stream, const char *name)
 			"  --disable-tls\t\tDon't establish TLS session\n"
 			"  --legacy-ssl\t\tLegacy SSL mode (without STARTTLS "
 								"support)\n"
+			"  --legacy-auth\t\tAllow insecure legacy authentication\n"
 			"  --ui, -u <NAME>\tUse specified UI. Available: any, "
 #ifdef BUILD_UI_GTK
 			"gtk, "
@@ -292,6 +294,7 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 		{ "disable-tls", no_argument, 0, 0 },
 		{ "help", no_argument, 0, 0 },
 		{ "host", no_argument, 0, 'h' },
+		{ "legacy-auth", no_argument, 0, 0 },
 		{ "legacy-ssl", no_argument, 0, 0 },
 		{ "noauth", no_argument, 0, 'n' },
 		{ "port", required_argument, 0, 'p' },
@@ -353,6 +356,8 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 				opts->xo_tls_disable = true;
 			} else if (xc_streq(name, "legacy-ssl")) {
 				opts->xo_tls_legacy = true;
+			} else if (xc_streq(name, "legacy-auth")) {
+				opts->xo_auth_legacy = true;
 			}
 			break;
 		default:
@@ -445,10 +450,11 @@ int main(int argc, char **argv)
 		passwd = strdup(opts.xo_passwd);
 	}
 
-	xmpp_flags = opts.xo_tls_disable ? XMPP_CONN_FLAG_DISABLE_TLS :
-		     opts.xo_tls_trust ?   XMPP_CONN_FLAG_TRUST_TLS :
-					   XMPP_CONN_FLAG_MANDATORY_TLS;
-	xmpp_flags |= opts.xo_tls_legacy ? XMPP_CONN_FLAG_LEGACY_SSL : 0;
+	xmpp_flags = opts.xo_tls_disable ?  XMPP_CONN_FLAG_DISABLE_TLS :
+		     opts.xo_tls_trust ?    XMPP_CONN_FLAG_TRUST_TLS :
+					    XMPP_CONN_FLAG_MANDATORY_TLS;
+	xmpp_flags |= opts.xo_tls_legacy ?  XMPP_CONN_FLAG_LEGACY_SSL : 0;
+	xmpp_flags |= opts.xo_auth_legacy ? XMPP_CONN_FLAG_LEGACY_AUTH : 0;
 	xmpp_conn_set_flags(xmpp_conn, xmpp_flags);
 	xmpp_conn_set_jid(xmpp_conn, opts.xo_jid);
 	xmpp_conn_set_pass(xmpp_conn, passwd);
