@@ -22,7 +22,10 @@ xmppconsole_SOURCES += \
 xmppconsole_CFLAGS = $(AM_CFLAGS)
 xmppconsole_LDFLAGS =
 
+man_MANS = docs/xmppconsole.1
+
 EXTRA_DIST = \
+	$(man_MANS) \
 	autogen.sh \
 	LICENSE \
 	README.md

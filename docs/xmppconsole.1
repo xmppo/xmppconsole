@@ -1,0 +1,89 @@
+.TH XMPPCONSOLE 1 "2020-10-01" "XMPP Console"
+.SH NAME
+xmppconsole \- a tool for XMPP hackers.
+.SH SYNOPSIS
+.B xmppconsole
+[OPTIONS]... <JID> [PASSWORD]
+.SH DESCRIPTION
+xmppconsole is a tool which creates an XMPP connection and allows user to send
+raw XMPP stanzas over the connection.
+.IR JID
+may contain resource part or consist of domain part only.
+.IR JID
+must be a domain for the anonymous authentication.
+.IR PASSWORD
+is not required for the anonymous authentication or if
+.IR \-n
+option is set.
+In other cases, if the
+.IR PASSWORD
+is not provided, a dialog will appear to type it.
+.PP
+Main goal of the tool is to help in debugging of XMPP entities and studying
+XMPP.
+.PP
+xmppconsole has support of multiple text and graphical UIs.
+Therefore, it can work on both desktops and servers.
+.PP
+xmppconsole has multiple options how to establish TLS session, authenticate or
+connect without authentication.
+User can perform manual authentication or register user with in-band
+registration.
+.SH OPTIONS
+.TP
+.BI "\-\-help"
+Show help.
+.TP
+.BI "\-h, \-\-host="HOST
+Connect to the
+.IR HOST
+instead of resolving SRV record of the domain.
+.TP
+.BI "\-p, \-\-port="PORT
+Override default port number.
+.TP
+.BI "\-n, \-\-noauth"
+Don't authenticate after receiving features stanza.
+In this mode user can perform manual authentication or register a user with
+in-band registration.
+.TP
+.BI "\-t, \-\-trust-tls-cert"
+Trust invalid TLS certificates.
+This option allows to establish TLS session with a server which has TLS
+misconfigured.
+This option can be helpful if TLS is required by the server.
+However, in this case TLS can't guarantee protection.
+.TP
+.BI "\-\-disable-tls"
+Don't establish TLS session.
+This can be helpful for capturing traffic with packet sniffers.
+Note, server may require TLS in order to allow authentication.
+.TP
+.BI "\-\-legacy-ssl"
+Connect without STARTTLS.
+In this mode xmppconsole establishes TLS session just after establishing TCP
+connection.
+.TP
+.BI "\-\-legacy-auth"
+Allow legacy authentication.
+It is disabled by default.
+.TP
+.BI "\-u, \-\-ui="NAME
+Use specific UI.
+By default, xmppconsole chooses graphical interface if possible and falls back
+to a text interface otherwise.
+Some interfaces are optional and may not be built.
+Refer to --help to see which UIs are currently available.
+.TP
+.BI "\-v, \-\-verbose"
+Print debug logs to terminal.
+This option can't be enabled for text-based interfaces.
+.SH BUGS
+Please, report bugs to the GitHub issue tracker: <https://github.com/pasis/xmppconsole/issues>
+.SH AUTHOR
+xmppconsole has been written by Dmitry Podgorny <pasis.ua@gmail.com>.
+.SH COPYRIGHT
+Copyright (C) 2020 Dmitry Podgorny <pasis.ua@gmail.com>.
+License GPLv3+: GNU GPL version 3 or later <https://www.gnu.org/licenses/gpl.html>
+This is free software; you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
