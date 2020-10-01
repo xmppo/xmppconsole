@@ -56,6 +56,7 @@ struct xc_options {
 	bool xo_tls_trust;
 };
 
+#define XC_RECONNECT_TRIES 5
 #define XC_RECONNECT_TIMER 5000
 #define XC_CONN_RAW_FEATURES_TIMEOUT 5000
 
@@ -158,6 +159,7 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 
 	switch (status) {
 	case XMPP_CONN_CONNECT:
+		ctx->c_attempts = 0;
 		if (ctx->c_is_raw) {
 			/* Special case for raw mode. */
 			xc_handle_connect_raw(conn, ctx);
@@ -185,6 +187,9 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 		if (signalled || xc_ui_is_done(ctx->c_ui))
 			xc_ui_quit(ctx->c_ui);
 		else {
+			if (ctx->c_attempts >= XC_RECONNECT_TRIES)
+				break;
+			++ctx->c_attempts;
 			xmpp_global_timed_handler_add(ctx->c_ctx,
 						      xc_reconnect_cb,
 						      XC_RECONNECT_TIMER, ctx);
@@ -466,6 +471,7 @@ int main(int argc, char **argv)
 	ctx.c_port        = opts.xo_port;
 	ctx.c_ctx         = xmpp_ctx;
 	ctx.c_conn        = xmpp_conn;
+	ctx.c_attempts    = 0;
 	ctx.c_is_raw      = opts.xo_raw_mode;
 	ctx.c_tls_disable = opts.xo_tls_disable;
 	ctx.c_tls_legacy  = opts.xo_tls_legacy;
