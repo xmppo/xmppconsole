@@ -444,6 +444,14 @@ static int ui_ncurses_init(struct xc_ui *ui)
 	nonl();
 	intrflush(NULL, FALSE);
 
+	if (has_colors()) {
+		/* XXX These functions may fail. */
+		start_color();
+		use_default_colors();
+		init_pair(1, COLOR_WHITE, COLOR_BLUE);
+		g_sep_color = COLOR_PAIR(1);
+	}
+
 	priv->win_log = newwin(LINES - 2, COLS, 0, 0);
 	priv->win_sep = newwin(1, COLS, LINES - 2, 0);
 	priv->win_inp = newwin(1, COLS, LINES - 1, 0);
