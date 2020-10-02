@@ -488,6 +488,7 @@ static int ui_ncurses_get_passwd(struct xc_ui *ui, char **out)
 	int                   i = 0;
 	int                   c;
 
+	/* TODO Implement resize for password dialog. */
 	ui_ncurses_status_set(priv, "Enter password: ");
 
 	keypad(priv->win_sep, TRUE);
