@@ -462,8 +462,8 @@ int main(int argc, char **argv)
 	xmpp_flags |= opts.xo_auth_legacy ? XMPP_CONN_FLAG_LEGACY_AUTH : 0;
 	xmpp_conn_set_flags(xmpp_conn, xmpp_flags);
 	xmpp_conn_set_jid(xmpp_conn, opts.xo_jid);
-	xmpp_conn_set_pass(xmpp_conn, passwd);
 	if (passwd != NULL) {
+		xmpp_conn_set_pass(xmpp_conn, passwd);
 		memset(passwd, 0, strlen(passwd));
 		free(passwd);
 	}
