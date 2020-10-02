@@ -28,20 +28,21 @@
 
 #include <string.h>
 
+/* List of supported UIs. Keep it sorted by priority. */
 static const struct {
-	const char *name;
-	xc_ui_type_t type;
-} xc_ui_names[] = {
-	{ "any", XC_UI_ANY, },
-	{ "console", XC_UI_CONSOLE, },
+	const char       *xua_name;
+	xc_ui_type_t      xua_type;
+	struct xc_ui_ops *xua_ops;
+} xc_ui_array[] = {
+	{ "any",     XC_UI_ANY,     NULL },
 #ifdef BUILD_UI_GTK
-	{ "gtk", XC_UI_GTK, },
+	{ "gtk",     XC_UI_GTK,     &xc_ui_ops_gtk },
 #endif
 #ifdef BUILD_UI_NCURSES
-	{ "ncurses", XC_UI_NCURSES, },
+	{ "ncurses", XC_UI_NCURSES, &xc_ui_ops_ncurses },
 #endif
+	{ "console", XC_UI_CONSOLE, &xc_ui_ops_console },
 };
-static const size_t xc_ui_names_nr = ARRAY_SIZE(xc_ui_names);
 
 xc_ui_type_t xc_ui_name_to_type(const char *name)
 {
@@ -51,9 +52,9 @@ xc_ui_type_t xc_ui_name_to_type(const char *name)
 	if (name == NULL) {
 		result = XC_UI_ANY;
 	} else {
-		for (i = 0; i < xc_ui_names_nr; ++i) {
-			if (xc_streq(xc_ui_names[i].name, name)) {
-				result = xc_ui_names[i].type;
+		for (i = 0; i < ARRAY_SIZE(xc_ui_array); ++i) {
+			if (xc_streq(xc_ui_array[i].xua_name, name)) {
+				result = xc_ui_array[i].xua_type;
 				break;
 			}
 		}
@@ -63,45 +64,26 @@ xc_ui_type_t xc_ui_name_to_type(const char *name)
 
 xc_ui_type_t xc_ui_type(struct xc_ui *ui)
 {
-	/*
-	 * TODO Make an array of all UI modules with descriptions like
-	 * name, type, pointer to the ops structure. Then rewrite xc_ui_type()
-	 * and xc_ui_init() to work with the array without hardcoding
-	 * knowledge of existing modules.
-	 */
-	if (ui->ui_ops == &xc_ui_ops_gtk)
-		return XC_UI_GTK;
-	else if (ui->ui_ops == &xc_ui_ops_ncurses)
-		return XC_UI_NCURSES;
-	else if (ui->ui_ops == &xc_ui_ops_console)
-		return XC_UI_CONSOLE;
-	else
-		return XC_UI_ERROR;
+	return ui->ui_type;
 }
 
 int xc_ui_init(struct xc_ui *ui, xc_ui_type_t type)
 {
+	int i;
 	int rc = -1;
 
-#ifdef BUILD_UI_GTK
-	if (type == XC_UI_GTK || type == XC_UI_ANY) {
-		ui->ui_ops = &xc_ui_ops_gtk;
-		rc = ui->ui_ops->uio_init(ui);
+	ui->ui_type = XC_UI_ERROR;
+	for (i = 0; i < ARRAY_SIZE(xc_ui_array); ++i) {
+		if (xc_ui_array[i].xua_ops != NULL &&
+		    (xc_ui_array[i].xua_type == type || type == XC_UI_ANY)) {
+			ui->ui_ops = xc_ui_array[i].xua_ops;
+			rc = ui->ui_ops->uio_init(ui);
+			if (rc == 0) {
+				ui->ui_type = xc_ui_array[i].xua_type;
+				break;
+			}
+		}
 	}
-#endif /* BUILD_UI_GTK */
-
-#ifdef BUILD_UI_NCURSES
-	if (type == XC_UI_NCURSES || (type == XC_UI_ANY && rc != 0)) {
-		ui->ui_ops = &xc_ui_ops_ncurses;
-		rc = ui->ui_ops->uio_init(ui);
-	}
-#endif /* BUILD_UI_NCURSES */
-
-	if (type == XC_UI_CONSOLE || (type == XC_UI_ANY && rc != 0)) {
-		ui->ui_ops = &xc_ui_ops_console;
-		rc = ui->ui_ops->uio_init(ui);
-	}
-
 	return rc;
 }
 

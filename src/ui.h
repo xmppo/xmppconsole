@@ -46,6 +46,7 @@ typedef enum {
 struct xc_ui {
 	const char             *ui_name;
 	struct xc_ctx          *ui_ctx;
+	xc_ui_type_t            ui_type;
 	const struct xc_ui_ops *ui_ops;
 	void                   *ui_priv;
 };
