@@ -185,11 +185,35 @@ static void ui_ncurses_line_destroy_first(struct xc_ui_ncurses *priv)
 
 static void ui_ncurses_status_set(struct xc_ui_ncurses *priv, const char *status)
 {
+	const char *jid = NULL;
+	const char *secure = "";
+	char buf[64];
+	size_t len;
+
 	priv->last_status = status;
-	if (*status == '\0') {
-		wbkgd(priv->win_sep, g_sep_color);
-	} else {
-		werase(priv->win_sep);
+	werase(priv->win_sep);
+	if (*status == '[') {
+		/* Status update branch. */
+		if (g_ctx != NULL) {
+			jid = xmpp_conn_get_bound_jid(g_ctx->c_conn) ?:
+			      xmpp_conn_get_jid(g_ctx->c_conn);
+			if (xmpp_conn_is_connected(g_ctx->c_conn)) {
+				secure = xmpp_conn_is_secured(g_ctx->c_conn) ?
+					 "[TLS] " : "[PLAIN] ";
+			}
+		}
+		len = strlen(status) + strlen(secure) +
+		      jid != NULL ? strlen(jid) : 0;
+		if (len + 2 > COLS)
+			secure = "";
+		snprintf(buf, sizeof(buf), "%s%s", secure, status);
+		len = strlen(buf);
+
+		mvwaddstr(priv->win_sep, 0, 1, jid != NULL ? jid : "");
+		if (len < COLS)
+			mvwaddstr(priv->win_sep, 0, COLS - len - 1, buf);
+	} else if (*status != '\0') {
+		/* If not a status update, just print the message. */
 		mvwaddstr(priv->win_sep, 0, 0, status);
 	}
 	wrefresh(priv->win_sep);
@@ -548,16 +572,16 @@ static void ui_ncurses_state_set(struct xc_ui *ui, xc_ui_state_t state)
 		ui_ncurses_rl_init();
 		break;
 	case XC_UI_CONNECTING:
-		ui_ncurses_status_set(priv, "[Connecting...]");
+		ui_ncurses_status_set(priv, "[connecting...]");
 		break;
 	case XC_UI_CONNECTED:
-		ui_ncurses_status_set(priv, "[Connected]");
+		ui_ncurses_status_set(priv, "[online]");
 		break;
 	case XC_UI_DISCONNECTING:
-		ui_ncurses_status_set(priv, "[Disconnecting...]");
+		ui_ncurses_status_set(priv, "[disconnecting...]");
 		break;
 	case XC_UI_DISCONNECTED:
-		ui_ncurses_status_set(priv, "[Disconnected]");
+		ui_ncurses_status_set(priv, "[offline]");
 		break;
 	}
 	ui_ncurses_redisplay_cursor(priv);
