@@ -72,6 +72,8 @@ int xc_ui_init(struct xc_ui *ui, xc_ui_type_t type)
 	int i;
 	int rc = -1;
 
+	memset(ui, 0, sizeof *ui);
+
 	ui->ui_type = XC_UI_ERROR;
 	for (i = 0; i < ARRAY_SIZE(xc_ui_array); ++i) {
 		if (xc_ui_array[i].xua_ops != NULL &&

@@ -30,6 +30,10 @@ struct xc_ui_gtk {
 	GtkWidget       *uig_window;
 	GtkWidget       *uig_view;
 	GtkWidget       *uig_input;
+	GtkWidget       *uig_status_jid;
+	GtkWidget       *uig_status_tls;
+	GtkWidget       *uig_status_conn;
+	GtkWidget       *uig_status_spinner;
 	GtkSourceBuffer *uig_buffer;
 	bool             uig_done;
 };
@@ -86,10 +90,34 @@ static gboolean ui_gtk_timed_cb(gpointer data)
 	return TRUE;
 }
 
-static void ui_gtk_title(struct xc_ui_gtk *ui_gtk, const gchar *title)
+static void ui_gtk_status_set(struct xc_ui *ui, const gchar *status)
 {
-	if (!ui_gtk->uig_done)
-		gtk_window_set_title(GTK_WINDOW(ui_gtk->uig_window), title);
+	struct xc_ui_gtk *ui_gtk = ui->ui_priv;
+	struct xc_ctx    *ctx    = ui->ui_ctx;
+	const char       *jid;
+	bool              is_tls;
+
+	if (!ui_gtk->uig_done) {
+		gtk_label_set_text(GTK_LABEL(ui_gtk->uig_status_conn), status);
+		if (ctx != NULL) {
+			jid = xmpp_conn_get_bound_jid(ctx->c_conn) ?:
+			      xmpp_conn_get_jid(ctx->c_conn);
+			gtk_label_set_text(GTK_LABEL(ui_gtk->uig_status_jid),
+					   jid != NULL ? jid : "");
+			is_tls = xmpp_conn_is_connected(ctx->c_conn) &&
+				 xmpp_conn_is_secured(ctx->c_conn);
+			gtk_toggle_button_set_active(
+				GTK_TOGGLE_BUTTON(ui_gtk->uig_status_tls),
+				is_tls);
+			if (strstr(status, "ing") != NULL) {
+				gtk_spinner_start(
+					GTK_SPINNER(ui_gtk->uig_status_spinner));
+			} else {
+				gtk_spinner_stop(
+					GTK_SPINNER(ui_gtk->uig_status_spinner));
+			}
+		}
+	}
 }
 
 static gboolean ui_gtk_dialog_input_cb(GObject *obj,
@@ -142,6 +170,30 @@ static char *ui_gtk_dialog_password(struct xc_ui *ui)
 	return password;
 }
 
+/*
+ *  <-----Box for status bar---->
+ *
+ * +-----------------------------+        ^
+ * | Status bar with JID and TLS |        |
+ * +-----------------------------+        |
+ * |                             |  ^     |
+ * |  SourceView for displaying  |  |     |
+ * |       the XMPP stream       |  |     |
+ * |                             |  |    Box
+ * |                             | Paned  |
+ * +-----------------------------+  |     |
+ * |                             |  |     |
+ * | TextView for typing stanzas |  |     |
+ * |                             |  v     |
+ * +-----------------------------+        v
+ *
+ *
+ * Status bar:
+ * +-Frame-----------------------+
+ * |         JID      |TLS|STATUS|
+ * +-----------------------------+
+ */
+
 static int ui_gtk_init(struct xc_ui *ui)
 {
 	struct xc_ui_gtk         *ui_gtk;
@@ -153,7 +205,16 @@ static int ui_gtk_init(struct xc_ui *ui)
 	GtkWidget                *input;
 	GtkWidget                *paned;
 	GtkWidget                *scrolled;
+	GtkWidget                *scrolled_input;
+	GtkWidget                *box;
 	gboolean                  check;
+	/* Status bar. */
+	GtkWidget                *status_frame;
+	GtkWidget                *status_box;
+	GtkWidget                *status_jid;
+	GtkWidget                *status_tls;
+	GtkWidget                *status_conn;
+	GtkWidget                *status_spinner;
 
 	check = gtk_init_check(NULL, NULL);
 	if (!check)
@@ -186,22 +247,50 @@ static int ui_gtk_init(struct xc_ui *ui)
 	scrolled = gtk_scrolled_window_new(NULL, NULL);
 	gtk_widget_set_hexpand(scrolled, FALSE);
 	gtk_widget_set_vexpand(scrolled, TRUE);
+	gtk_container_add(GTK_CONTAINER(scrolled), view);
+
+	scrolled_input = gtk_scrolled_window_new(NULL, NULL);
+	gtk_widget_set_hexpand(scrolled_input, FALSE);
+	gtk_widget_set_vexpand(scrolled_input, TRUE);
+	gtk_container_add(GTK_CONTAINER(scrolled_input), input);
+	gtk_widget_set_size_request(scrolled_input, -1, 100);
 
 	paned = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
 	gtk_paned_pack1(GTK_PANED(paned), scrolled, TRUE, TRUE);
-	gtk_paned_pack2(GTK_PANED(paned), input, TRUE, TRUE);
+	gtk_paned_pack2(GTK_PANED(paned), scrolled_input, FALSE, FALSE);
 	gtk_paned_set_wide_handle(GTK_PANED(paned), TRUE);
-	gtk_paned_set_position(GTK_PANED(paned), 400);
 
-	gtk_container_add(GTK_CONTAINER(scrolled), view);
-	gtk_container_add(GTK_CONTAINER(window), paned);
+	status_jid = gtk_label_new(NULL);
+	status_tls = gtk_check_button_new_with_label("TLS");
+	gtk_widget_set_sensitive(status_tls, FALSE);
+	status_conn = gtk_label_new(NULL);
+	status_spinner = gtk_spinner_new();
+	status_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+	gtk_box_pack_start(GTK_BOX(status_box), status_jid, TRUE, TRUE, 0);
+	gtk_box_pack_end(GTK_BOX(status_box), status_spinner, FALSE, FALSE, 0);
+	gtk_box_pack_end(GTK_BOX(status_box), status_conn, FALSE, FALSE, 0);
+	gtk_box_pack_end(GTK_BOX(status_box), status_tls, FALSE, FALSE, 0);
+	status_frame = gtk_frame_new(NULL);
+	gtk_container_add(GTK_CONTAINER(status_frame), status_box);
+	gtk_container_set_border_width(GTK_CONTAINER(status_frame), 10);
+
+	box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	gtk_box_pack_end(GTK_BOX(box), paned, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(box), status_frame, FALSE, FALSE, 0);
+
+	gtk_container_add(GTK_CONTAINER(window), box);
+	gtk_window_set_title(GTK_WINDOW(window), UI_GTK_TITLE_TEXT);
 
 	ui_gtk->uig_window = window;
 	ui_gtk->uig_view   = view;
 	ui_gtk->uig_input  = input;
 	ui_gtk->uig_buffer = buffer;
 	ui_gtk->uig_done   = false;
-	ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT);
+
+	ui_gtk->uig_status_jid     = status_jid;
+	ui_gtk->uig_status_tls     = status_tls;
+	ui_gtk->uig_status_conn    = status_conn;
+	ui_gtk->uig_status_spinner = status_spinner;
 
 	ui->ui_priv = ui_gtk;
 
@@ -241,19 +330,20 @@ static void ui_gtk_state_set(struct xc_ui *ui, xc_ui_state_t state)
 		/* Must not happen. */
 		break;
 	case XC_UI_INITED:
+		ui_gtk_status_set(ui, "[offline]");
 		break;
 	case XC_UI_CONNECTING:
-		ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT " (Connecting...)");
+		ui_gtk_status_set(ui, "[connecting...]");
 		break;
 	case XC_UI_CONNECTED:
-		ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT " (Connected)");
+		ui_gtk_status_set(ui, "[online]");
 		gtk_widget_set_sensitive(ui_gtk->uig_input, TRUE);
 		break;
 	case XC_UI_DISCONNECTING:
-		ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT " (Disconnecting...)");
+		ui_gtk_status_set(ui, "[disconnecting...]");
 		break;
 	case XC_UI_DISCONNECTED:
-		ui_gtk_title(ui_gtk, UI_GTK_TITLE_TEXT " (Disconnected)");
+		ui_gtk_status_set(ui, "[offline]");
 		gtk_widget_set_sensitive(ui_gtk->uig_input, FALSE);
 		break;
 	}
