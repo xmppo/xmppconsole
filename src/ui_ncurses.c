@@ -482,6 +482,7 @@ static int ui_ncurses_init(struct xc_ui *ui)
 
 	scrollok(priv->win_log, TRUE);
 	wtimeout(priv->win_inp, UI_NCURSES_INPUT_TIMEOUT);
+	wbkgd(priv->win_sep, g_sep_color);
 
 	xc_list_init(&priv->lines, &ui_ncurses_lines_descr);
 	priv->lines_nr = 0;
