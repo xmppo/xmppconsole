@@ -203,7 +203,7 @@ static void ui_ncurses_status_set(struct xc_ui_ncurses *priv, const char *status
 			}
 		}
 		len = strlen(status) + strlen(secure) +
-		      jid != NULL ? strlen(jid) : 0;
+		      (jid != NULL ? strlen(jid) : 0);
 		if (len + 2 > COLS)
 			secure = "";
 		snprintf(buf, sizeof(buf), "%s%s", secure, status);
