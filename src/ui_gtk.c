@@ -35,6 +35,7 @@ struct xc_ui_gtk {
 	GtkWidget       *uig_status_conn;
 	GtkWidget       *uig_status_spinner;
 	GtkSourceBuffer *uig_buffer;
+	GtkTextMark     *uig_mark;
 	bool             uig_done;
 };
 
@@ -200,6 +201,8 @@ static int ui_gtk_init(struct xc_ui *ui)
 	GtkSourceLanguageManager *lm;
 	GtkSourceLanguage        *lang;
 	GtkSourceBuffer          *buffer;
+	GtkTextIter               buffer_end;
+	GtkTextMark              *buffer_mark;
 	GtkWidget                *window;
 	GtkWidget                *view;
 	GtkWidget                *input;
@@ -235,6 +238,9 @@ static int ui_gtk_init(struct xc_ui *ui)
 		gtk_source_buffer_set_language(buffer, lang);
 		gtk_source_buffer_set_highlight_syntax(buffer, TRUE);
 	}
+	gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffer), &buffer_end);
+	buffer_mark = gtk_text_buffer_create_mark (GTK_TEXT_BUFFER(buffer),
+						NULL, &buffer_end, FALSE);
 	view = gtk_source_view_new_with_buffer(buffer);
 	gtk_source_view_set_show_line_numbers(GTK_SOURCE_VIEW(view), TRUE);
 	gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
@@ -285,6 +291,7 @@ static int ui_gtk_init(struct xc_ui *ui)
 	ui_gtk->uig_view   = view;
 	ui_gtk->uig_input  = input;
 	ui_gtk->uig_buffer = buffer;
+	ui_gtk->uig_mark   = buffer_mark;
 	ui_gtk->uig_done   = false;
 
 	ui_gtk->uig_status_jid     = status_jid;
@@ -369,6 +376,9 @@ static void ui_gtk_print(struct xc_ui *ui, const char *msg)
 		gtk_text_buffer_insert(GTK_TEXT_BUFFER(buffer), &end,
 				       text->str, -1);
 		g_string_free(text, TRUE);
+		/* TODO Scroll only when it is at the bottom. */
+		gtk_text_view_scroll_to_mark(GTK_TEXT_VIEW(ui_gtk->uig_view),
+					     ui_gtk->uig_mark, 0, FALSE, 0, 0);
 	}
 }
 
