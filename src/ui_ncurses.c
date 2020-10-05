@@ -70,6 +70,7 @@ struct xc_ui_ncurses {
 #define UI_NCURSES_INPUT_TIMEOUT 1
 #define UI_NCURSES_LINES_MAX 1024
 #define UI_NCURSES_LINE_MAGIC 0xdeadbeef
+#define UI_NCURSES_TERMINAL_TITLE "xmppconsole"
 
 #define XC_LINE_TO_ROWS(line) (((line)->chars_nr + COLS - 1) / COLS)
 /* Number of visible rows. The last row is always empty because of '\n'. */
@@ -458,6 +459,8 @@ static int ui_ncurses_init(struct xc_ui *ui)
 	loc = setlocale(LC_ALL, "");
 	if (loc == NULL)
 		return -ENODEV;
+
+	printf("\033]0;" UI_NCURSES_TERMINAL_TITLE "\007");
 
 	result = initscr();
 	if (result == NULL)
