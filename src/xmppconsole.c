@@ -247,7 +247,39 @@ static void xc_log_cb(void             *userdata,
 
 void xc_send(struct xc_ctx *ctx, const char *msg)
 {
-	xmpp_send_raw_string(ctx->c_conn, "%s", msg);
+	const char *tag_stream;
+	const char *tag_xml;
+	const char *ptr;
+	char       *buf;
+	size_t      len;
+
+	tag_stream = strstr(msg, "<stream:stream");
+	if (tag_stream != NULL) {
+		/*
+		 * Re-open a stream. We have to reset libstrophe's parser with
+		 * a xmpp_conn_open_stream-like function.
+		 */
+		tag_xml = strstr(msg, "<?");
+		ptr = tag_xml != NULL && tag_xml < tag_stream ? tag_xml : tag_stream;
+		if (msg < ptr) {
+			len = (size_t)(ptr - msg);
+			buf = malloc(len + 1);
+			if (buf != NULL) {
+				strncpy(buf, msg, len);
+				buf[len] = '\0';
+				xmpp_send_raw_string(ctx->c_conn, "%s", buf);
+				free(buf);
+			}
+		}
+		/* TODO Don't ignore attributes in the users tag. */
+		xmpp_conn_open_stream_default(ctx->c_conn);
+		ptr = strstr(tag_stream, ">");
+		if (ptr != NULL && *(ptr + 1) != '\0') {
+			xmpp_send_raw_string(ctx->c_conn, "%s", ptr + 1);
+		}
+	} else {
+		xmpp_send_raw_string(ctx->c_conn, "%s", msg);
+	}
 }
 
 void xc_quit(struct xc_ctx *ctx)
