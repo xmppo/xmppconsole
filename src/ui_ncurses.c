@@ -494,6 +494,9 @@ static int ui_ncurses_init(struct xc_ui *ui)
 	priv->last_status = "";
 	ui->ui_priv = priv;
 
+	/* We need a global pointer to access it from readline callbacks. */
+	g_ui = ui;
+
 	wrefresh(priv->win_log);
 	ui_ncurses_redisplay_sep(priv);
 	wrefresh(priv->win_inp);
@@ -524,7 +527,6 @@ static int ui_ncurses_get_passwd(struct xc_ui *ui, char **out)
 	int                   i = 0;
 	int                   c;
 
-	/* TODO Implement resize for password dialog. */
 	ui_ncurses_status_set(priv, "Enter password: ");
 
 	keypad(priv->win_sep, TRUE);
@@ -545,6 +547,9 @@ static int ui_ncurses_get_passwd(struct xc_ui *ui, char **out)
 		case 127:
 			if (i > 0)
 				--i;
+			break;
+		case KEY_RESIZE:
+			ui_ncurses_resize(priv);
 			break;
 		default:
 			if (c < 256 && i + 1 < (int)sizeof(passwd))
@@ -571,7 +576,6 @@ static void ui_ncurses_state_set(struct xc_ui *ui, xc_ui_state_t state)
 		break;
 	case XC_UI_INITED:
 		g_ctx = ui->ui_ctx;
-		g_ui = ui;
 		ui_ncurses_status_set(priv, "");
 		ui_ncurses_rl_init();
 		break;
