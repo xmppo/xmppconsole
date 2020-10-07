@@ -100,7 +100,7 @@ static void ui_gtk_status_set(struct xc_ui *ui, const gchar *status)
 
 	if (!ui_gtk->uig_done) {
 		gtk_label_set_text(GTK_LABEL(ui_gtk->uig_status_conn), status);
-		if (ctx != NULL) {
+		if (ctx != NULL && ctx->c_conn != NULL) {
 			jid = xmpp_conn_get_bound_jid(ctx->c_conn) ?:
 			      xmpp_conn_get_jid(ctx->c_conn);
 			gtk_label_set_text(GTK_LABEL(ui_gtk->uig_status_jid),

@@ -195,7 +195,7 @@ static void ui_ncurses_status_set(struct xc_ui_ncurses *priv, const char *status
 	werase(priv->win_sep);
 	if (*status == '[') {
 		/* Status update branch. */
-		if (g_ctx != NULL) {
+		if (g_ctx != NULL && g_ctx->c_conn != NULL) {
 			jid = xmpp_conn_get_bound_jid(g_ctx->c_conn) ?:
 			      xmpp_conn_get_jid(g_ctx->c_conn);
 			if (xmpp_conn_is_connected(g_ctx->c_conn)) {
