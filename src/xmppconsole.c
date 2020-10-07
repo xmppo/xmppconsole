@@ -62,7 +62,6 @@ struct xc_options {
 
 static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata);
 
-static bool signalled = false;
 static bool verbose_level = false;
 
 static int xc_conn_raw_error_handler(xmpp_conn_t *conn,
@@ -184,7 +183,7 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 		break;
 	default:
 		xc_ui_disconnected(ctx->c_ui);
-		if (signalled || xc_ui_is_done(ctx->c_ui))
+		if (ctx->c_is_done || xc_ui_is_done(ctx->c_ui))
 			xc_ui_quit(ctx->c_ui);
 		else {
 			if (ctx->c_attempts >= XC_RECONNECT_TRIES)
@@ -284,6 +283,7 @@ void xc_send(struct xc_ctx *ctx, const char *msg)
 
 void xc_quit(struct xc_ctx *ctx)
 {
+	ctx->c_is_done = true;
 	if (xmpp_conn_is_connected(ctx->c_conn))
 		xmpp_disconnect(ctx->c_conn);
 	else
@@ -427,7 +427,6 @@ static struct xc_ctx *g_ctx;
 
 static void xc_sighandler(int signo)
 {
-	signalled = true;
 	xc_quit(g_ctx);
 }
 

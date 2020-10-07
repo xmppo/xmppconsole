@@ -32,6 +32,7 @@ struct xc_ctx {
 	unsigned short  c_port;
 	struct xc_ui   *c_ui;
 	int             c_attempts;
+	bool            c_is_done;
 	bool            c_is_raw;
 	bool            c_tls_disable;
 	bool            c_tls_legacy;
