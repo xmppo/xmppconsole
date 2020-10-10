@@ -186,9 +186,9 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 		if (ctx->c_is_done || xc_ui_is_done(ctx->c_ui))
 			xc_ui_quit(ctx->c_ui);
 		else {
+			++ctx->c_attempts;
 			if (ctx->c_attempts >= XC_RECONNECT_TRIES)
 				break;
-			++ctx->c_attempts;
 			xmpp_global_timed_handler_add(ctx->c_ctx,
 						      xc_reconnect_cb,
 						      XC_RECONNECT_TIMER, ctx);
