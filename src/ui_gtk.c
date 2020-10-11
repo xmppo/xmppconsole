@@ -25,6 +25,8 @@
 #include <errno.h>
 #include <gtk/gtk.h>
 #include <gtksourceview/gtksource.h>
+#include <stdlib.h>
+#include <string.h>
 
 struct xc_ui_gtk {
 	GtkWidget       *uig_window;
