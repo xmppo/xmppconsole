@@ -114,27 +114,40 @@ static int ui_ncurses_getc_cb(FILE *dummy)
  * this as part of its default redisplay function and does not export the
  * cursor column.
  *
- * Returns the total width (in columns) of the characters in the 'n'-byte
- * prefix of the null-terminated multibyte string 's'. If 'n' is larger than
- * 's', returns the total width of the string. Tries to emulate how readline
- * prints some special characters.
+ * This is a helper function which processes maximum 'len_max' bytes of the
+ * null-terminated string 's' and 'wlen_max' in width.
+ *
+ * In 'wlen_out' returns the total width (in columns) of the characters in the
+ * prefix of the null-terminated multibyte string 's'.
+ *
+ * In 'len_out' returns the prefix size in bytes.
+ *
+ * If both limits 'wlen_max' and 'len_max' are larger than 's', returns the
+ * total width and size of the string respectively.
+ *
+ * Tries to emulate how readline prints some special characters. Makes a guess
+ * for malformed strings.
  *
  * 'offset' is the current horizontal offset within the line. This is used to
  * get tab stops right.
- *
- * Makes a guess for malformed strings.
  */
-static size_t ui_ncurses_strnwidth(const char *s, size_t n, size_t offset)
+static void ui_ncurses_strnwidth_helper(const char *s,
+					size_t      wlen_max,
+					size_t      len_max,
+					size_t      offset,
+					size_t     *wlen_out,
+					size_t     *len_out)
 {
 	mbstate_t shift_state;
 	wchar_t wc;
 	size_t wc_len;
 	size_t width = 0;
+	size_t i;
 
 	/* Start in the initial shift state */
 	memset(&shift_state, '\0', sizeof shift_state);
 
-	for (size_t i = 0; i < n; i += wc_len) {
+	for (i = 0; i < len_max && width < wlen_max; i += wc_len) {
 		/* Extract the next multibyte character */
 		wc_len = mbrtowc(&wc, s + i, MB_CUR_MAX, &shift_state);
 		switch (wc_len) {
@@ -149,7 +162,13 @@ static size_t ui_ncurses_strnwidth(const char *s, size_t n, size_t offset)
 			 * byte/column wide each starting from the invalid character to
 			 * keep things simple.
 			 */
-			width += strnlen(s + i, n - i);
+			wc_len = strnlen(s + i, len_max - i);
+			width += wc_len;
+			if (width > wlen_max) {
+				wc_len -= width - wlen_max;
+				width = wlen_max;
+			}
+			i += wc_len;
 			goto done;
 		}
 
@@ -164,7 +183,19 @@ static size_t ui_ncurses_strnwidth(const char *s, size_t n, size_t offset)
 		}
 	}
 done:
-	return width;
+	if (wlen_out != NULL)
+		*wlen_out = width;
+	if (len_out != NULL)
+		*len_out = i;
+}
+
+static size_t ui_ncurses_strnwidth(const char *s, size_t n, size_t offset)
+{
+	size_t wlen;
+
+	ui_ncurses_strnwidth_helper(s, SIZE_MAX, n, offset, &wlen, NULL);
+
+	return wlen;
 }
 
 static size_t ui_ncurses_strwidth(const char *s, size_t offset)
