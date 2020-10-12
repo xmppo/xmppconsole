@@ -60,8 +60,10 @@ struct xc_ui_ncurses {
 	WINDOW *win_log;
 	WINDOW *win_sep;
 	WINDOW *win_inp;
-	const char *last_status;
+	size_t win_inp_offset;
+	size_t win_inp_pos;
 	size_t lines_nr;
+	const char *last_status;
 	struct xc_list lines;
 	struct ui_ncurses_line *line_current;
 	bool paged;
@@ -203,6 +205,15 @@ static size_t ui_ncurses_strwidth(const char *s, size_t offset)
 	return ui_ncurses_strnwidth(s, SIZE_MAX, offset);
 }
 
+static size_t ui_ncurses_strnlen(const char *s, size_t wlen_max, size_t offset)
+{
+	size_t len;
+
+	ui_ncurses_strnwidth_helper(s, wlen_max, SIZE_MAX, offset, NULL, &len);
+
+	return len;
+}
+
 static void ui_ncurses_line_destroy_first(struct xc_ui_ncurses *priv)
 {
 	struct ui_ncurses_line *item = xc_list_dequeue(&priv->lines);
@@ -251,25 +262,47 @@ static void ui_ncurses_status_set(struct xc_ui_ncurses *priv, const char *status
 	wrefresh(priv->win_sep);
 }
 
-static void ui_ncurses_move_cursor(struct xc_ui_ncurses *priv)
+static size_t ui_ncurses_cursor_pos(struct xc_ui_ncurses *priv)
 {
-	size_t pos = ui_ncurses_strnwidth(rl_line_buffer, rl_point, 0);
+	return ui_ncurses_strnwidth(rl_line_buffer, rl_point, 0);
+}
+
+static void ui_ncurses_move_cursor(struct xc_ui_ncurses *priv, size_t pos)
+{
 	wmove(priv->win_inp, 0, pos);
 }
 
 static void ui_ncurses_redisplay_cursor(struct xc_ui_ncurses *priv)
 {
-	ui_ncurses_move_cursor(priv);
+	ui_ncurses_move_cursor(priv, priv->win_inp_pos);
 	wrefresh(priv->win_inp);
 }
 
 static void ui_ncurses_redisplay_cb(void)
 {
 	struct xc_ui_ncurses *priv = g_ui->ui_priv;
+	size_t pos = ui_ncurses_cursor_pos(priv);
+	size_t width = ui_ncurses_strwidth(rl_line_buffer, 0);
+	size_t len;
+	const char *s;
+
+	if (priv->win_inp_offset > 0 && width < COLS) {
+		priv->win_inp_offset = 0;
+	} else if (pos == priv->win_inp_offset && pos > 0) {
+		priv->win_inp_offset -= COLS / 2;
+	} else if (pos < priv->win_inp_offset) {
+		priv->win_inp_offset = pos > COLS - 1 ? pos - COLS + 1 : 0;
+	} else if (pos - priv->win_inp_offset >= COLS) {
+		priv->win_inp_offset += COLS / 2;
+	}
 
 	werase(priv->win_inp);
-	mvwaddstr(priv->win_inp, 0, 0, rl_line_buffer);
-	ui_ncurses_move_cursor(priv);
+	s = rl_line_buffer +
+		ui_ncurses_strnlen(rl_line_buffer, priv->win_inp_offset, 0);
+	len = ui_ncurses_strnlen(s, COLS, 0);
+	mvwaddnstr(priv->win_inp, 0, 0, s, len);
+	priv->win_inp_pos = pos - priv->win_inp_offset;
+	ui_ncurses_move_cursor(priv, priv->win_inp_pos);
 	wrefresh(priv->win_inp);
 }
 
@@ -519,6 +552,8 @@ static int ui_ncurses_init(struct xc_ui *ui)
 	wbkgd(priv->win_sep, g_sep_color);
 
 	xc_list_init(&priv->lines, &ui_ncurses_lines_descr);
+	priv->win_inp_offset = 0;
+	priv->win_inp_pos = 0;
 	priv->lines_nr = 0;
 	priv->line_current = NULL;
 	priv->paged = false;
