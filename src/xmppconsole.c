@@ -48,8 +48,9 @@ struct xc_options {
 	const char *xo_host;
 	const char *xo_ui;
 	xc_ui_type_t xo_ui_type;
-	bool xo_auth_legacy;
 	bool xo_help;
+	bool xo_version;
+	bool xo_auth_legacy;
 	bool xo_raw_mode;
 	bool xo_tls_disable;
 	bool xo_tls_legacy;
@@ -63,6 +64,20 @@ struct xc_options {
 static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata);
 
 static bool verbose_level = false;
+
+#ifdef PACKAGE_NAME
+static const char *xc_name = PACKAGE_NAME;
+#else
+static const char *xc_name = "xmppconsole";
+#endif
+
+#ifdef PACKAGE_VERSION
+static const char *xc_version = PACKAGE_VERSION;
+#elif defined(VERSION)
+static const char *xc_version = VERSION;
+#else
+static const char *xc_version = "unknown";
+#endif
 
 static int xc_conn_raw_error_handler(xmpp_conn_t *conn,
 				     xmpp_stanza_t *stanza,
@@ -314,6 +329,7 @@ static void xc_usage(FILE *stream, const char *name)
 #endif
 			"console.\n"
 			"  --verbose, -v\t\tPrint debug messages\n"
+			"  --version\t\tPrint version and exit\n"
 		);
 }
 
@@ -338,6 +354,7 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 		{ "trust-tls-cert", no_argument, 0, 't' },
 		{ "ui", required_argument, 0, 'u' },
 		{ "verbose", no_argument, 0, 'v' },
+		{ "version", no_argument, 0, 0 },
 		{ 0, 0, 0, 0 }
 	};
 	const char *short_opts = "h:np:tu:v";
@@ -395,6 +412,9 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 				opts->xo_tls_legacy = true;
 			} else if (xc_streq(name, "legacy-auth")) {
 				opts->xo_auth_legacy = true;
+			} else if (xc_streq(name, "version")) {
+				opts->xo_version = true;
+				return true;
 			}
 			break;
 		default:
@@ -452,8 +472,12 @@ int main(int argc, char **argv)
 	result = xc_options_parse(argc, argv, &opts);
 	if (!result || opts.xo_help) {
 		xc_usage(result ? stdout : stderr,
-			 argc > 0 ? argv[0] : "xmppconsole");
+			 argc > 0 ? argv[0] : xc_name);
 		exit(result ? EXIT_SUCCESS : EXIT_FAILURE);
+	}
+	if (opts.xo_version) {
+		printf("%s version %s\n", xc_name, xc_version);
+		exit(EXIT_SUCCESS);
 	}
 
 	rc = xc_ui_init(&ui, opts.xo_ui_type);
