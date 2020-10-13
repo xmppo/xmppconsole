@@ -499,9 +499,15 @@ static int ui_ncurses_down_cb()
 static void ui_ncurses_rl_init(void)
 {
 	rl_bind_key ('\t', rl_insert);
-	/* PageUp and PageDown. Doesn't work... */
+	/* PageUp and PageDown. */
 	rl_bind_keyseq("\\e[5~", ui_ncurses_pageup_cb);
 	rl_bind_keyseq("\\e[6~", ui_ncurses_pagedown_cb);
+	/* Ctrl + PageUp and PageDown. */
+	rl_bind_keyseq("\\e[5;5~", ui_ncurses_pageup_cb);
+	rl_bind_keyseq("\\e[6;5~", ui_ncurses_pagedown_cb);
+	/* Alt + PageUp and PageDown. */
+	rl_bind_keyseq("\\e[5;3~", ui_ncurses_pageup_cb);
+	rl_bind_keyseq("\\e[6;3~", ui_ncurses_pagedown_cb);
 #if 0
 	/*
 	 * These bindings are for UP and DOWN arrows, enabling them
@@ -516,6 +522,9 @@ static void ui_ncurses_rl_init(void)
 	/* Ctrl + arrows */
 	rl_bind_keyseq("\\e[1;5A", ui_ncurses_up_cb);
 	rl_bind_keyseq("\\e[1;5B", ui_ncurses_down_cb);
+	/* Alt + arrows */
+	rl_bind_keyseq("\\e[1;3A", ui_ncurses_up_cb);
+	rl_bind_keyseq("\\e[1;3B", ui_ncurses_down_cb);
 
 	rl_catch_signals = 0;
 	rl_catch_sigwinch = 0;
