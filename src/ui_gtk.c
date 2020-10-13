@@ -235,11 +235,12 @@ static int ui_gtk_init(struct xc_ui *ui)
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_default_size(GTK_WINDOW(window), 1000, 500);
 
-	buffer = gtk_source_buffer_new(NULL);
-	if (lang != NULL) {
-		gtk_source_buffer_set_language(buffer, lang);
-		gtk_source_buffer_set_highlight_syntax(buffer, TRUE);
-	}
+	buffer = gtk_source_buffer_new_with_language(lang);
+	input = gtk_source_view_new_with_buffer(buffer);
+	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(input), GTK_WRAP_WORD);
+	gtk_widget_set_sensitive(input, FALSE);
+
+	buffer = gtk_source_buffer_new_with_language(lang);
 	gtk_text_buffer_get_end_iter(GTK_TEXT_BUFFER(buffer), &buffer_end);
 	buffer_mark = gtk_text_buffer_create_mark (GTK_TEXT_BUFFER(buffer),
 						NULL, &buffer_end, FALSE);
@@ -247,10 +248,7 @@ static int ui_gtk_init(struct xc_ui *ui)
 	gtk_source_view_set_show_line_numbers(GTK_SOURCE_VIEW(view), TRUE);
 	gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
 	gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
-	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_WORD_CHAR);
-
-	input = gtk_text_view_new();
-	gtk_widget_set_sensitive(input, FALSE);
+	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(view), GTK_WRAP_CHAR);
 
 	scrolled = gtk_scrolled_window_new(NULL, NULL);
 	gtk_widget_set_hexpand(scrolled, FALSE);
