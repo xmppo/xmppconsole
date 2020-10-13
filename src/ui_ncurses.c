@@ -93,7 +93,8 @@ static struct xc_ctx *g_ctx = NULL;
 static struct xc_ui  *g_ui = NULL;
 static int            g_input = 0;
 static bool           g_input_avail = false;
-static chtype         g_sep_color = A_STANDOUT;
+static int            g_sep_color = A_STANDOUT;
+static int            g_ctl_color = A_STANDOUT;
 
 static int ui_ncurses_input_avail_cb(void)
 {
@@ -286,13 +287,20 @@ static void ui_ncurses_redisplay_cb(void)
 	size_t len;
 	const char *s;
 
+	/*
+	 * Adjust offset when input is larger than the window width.
+	 * When the window is scrolled horizontally, we print symbols '<' and
+	 * '>' to indicate that only a part of the input is displayed. Take
+	 * this into account, so cursor doesn't overlap with the symbols.
+	 */
 	if (priv->win_inp_offset > 0 && width < COLS) {
 		priv->win_inp_offset = 0;
-	} else if (pos == priv->win_inp_offset && pos > 0) {
+	} else if (priv->win_inp_offset > 0 && pos == priv->win_inp_offset + 1) {
 		priv->win_inp_offset -= COLS / 2;
-	} else if (pos < priv->win_inp_offset) {
+	} else if (priv->win_inp_offset > 0 && pos <= priv->win_inp_offset) {
 		priv->win_inp_offset = pos > COLS - 1 ? pos - COLS + 1 : 0;
-	} else if (pos - priv->win_inp_offset >= COLS) {
+	} else if (pos - priv->win_inp_offset >= COLS - 1 &&
+		   width - priv->win_inp_offset >= COLS) {
 		priv->win_inp_offset += COLS / 2;
 	}
 
@@ -301,6 +309,16 @@ static void ui_ncurses_redisplay_cb(void)
 		ui_ncurses_strnlen(rl_line_buffer, priv->win_inp_offset, 0);
 	len = ui_ncurses_strnlen(s, COLS, 0);
 	mvwaddnstr(priv->win_inp, 0, 0, s, len);
+	if (priv->win_inp_offset > 0) {
+		wattron(priv->win_inp, g_ctl_color);
+		mvwaddstr(priv->win_inp, 0, 0, "<");
+		wattroff(priv->win_inp, g_ctl_color);
+	}
+	if (width - priv->win_inp_offset > COLS) {
+		wattron(priv->win_inp, g_ctl_color);
+		mvwaddstr(priv->win_inp, 0, COLS - 1, ">");
+		wattroff(priv->win_inp, g_ctl_color);
+	}
 	priv->win_inp_pos = pos - priv->win_inp_offset;
 	ui_ncurses_move_cursor(priv, priv->win_inp_pos);
 	wrefresh(priv->win_inp);
@@ -540,7 +558,9 @@ static int ui_ncurses_init(struct xc_ui *ui)
 		start_color();
 		use_default_colors();
 		init_pair(1, COLOR_WHITE, COLOR_BLUE);
+		init_pair(2, COLOR_CYAN, COLOR_BLUE);
 		g_sep_color = COLOR_PAIR(1);
+		g_ctl_color = COLOR_PAIR(2);
 	}
 
 	priv->win_log = newwin(LINES - 2, COLS, 0, 0);
