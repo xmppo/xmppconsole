@@ -23,6 +23,7 @@
 #include <strophe.h>
 
 /* Forward declarations */
+struct xc_options;
 struct xc_ui;
 
 struct xc_ctx {
@@ -38,6 +39,7 @@ struct xc_ctx {
 	bool            c_tls_legacy;
 };
 
+int xc_connect(struct xc_ctx *ctx, struct xc_options *opts, bool reconnect);
 void xc_send(struct xc_ctx *ctx, const char *msg);
 void xc_quit(struct xc_ctx *ctx);
 

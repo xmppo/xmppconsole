@@ -43,9 +43,9 @@
 
 struct xc_options {
 	unsigned short xo_port;
-	const char *xo_jid;
-	const char *xo_passwd;
-	const char *xo_host;
+	char *xo_jid;
+	char *xo_passwd;
+	char *xo_host;
 	const char *xo_ui;
 	xc_ui_type_t xo_ui_type;
 	bool xo_help;
@@ -60,8 +60,6 @@ struct xc_options {
 #define XC_RECONNECT_TRIES 5
 #define XC_RECONNECT_TIMER 5000
 #define XC_CONN_RAW_FEATURES_TIMEOUT 5000
-
-static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata);
 
 static bool verbose_level = false;
 
@@ -157,6 +155,19 @@ static void xc_handle_connect_raw(xmpp_conn_t *conn, struct xc_ctx *ctx)
 			       XC_CONN_RAW_FEATURES_TIMEOUT, NULL);
 }
 
+static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata)
+{
+	struct xc_ctx *ctx = userdata;
+	int            rc = 0;
+
+	++ctx->c_attempts;
+	if (ctx->c_attempts <= XC_RECONNECT_TRIES)
+		rc = xc_connect(ctx, NULL, false);
+
+	/* Don't remove timed handler if connection fails, reconnect later */
+	return rc == 0 ? 0 : 1;
+}
+
 static void xc_conn_handler(xmpp_conn_t         *conn,
 			    xmpp_conn_event_t    status,
 			    int                  error,
@@ -201,9 +212,6 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 		if (ctx->c_is_done || xc_ui_is_done(ctx->c_ui))
 			xc_ui_quit(ctx->c_ui);
 		else {
-			++ctx->c_attempts;
-			if (ctx->c_attempts >= XC_RECONNECT_TRIES)
-				break;
 			xmpp_global_timed_handler_add(ctx->c_ctx,
 						      xc_reconnect_cb,
 						      XC_RECONNECT_TIMER, ctx);
@@ -211,30 +219,57 @@ static void xc_conn_handler(xmpp_conn_t         *conn,
 	}
 }
 
-static int xc_connect(xmpp_conn_t *conn, struct xc_ctx *ctx)
+static void xc_configure(struct xc_ctx *ctx, struct xc_options *opts)
+{
+	long xmpp_flags;
+
+	assert(opts->xo_jid != NULL);
+
+	xmpp_flags = opts->xo_tls_disable ?  XMPP_CONN_FLAG_DISABLE_TLS :
+		     opts->xo_tls_trust ?    XMPP_CONN_FLAG_TRUST_TLS :
+					     XMPP_CONN_FLAG_MANDATORY_TLS;
+	xmpp_flags |= opts->xo_tls_legacy ?  XMPP_CONN_FLAG_LEGACY_SSL : 0;
+	xmpp_flags |= opts->xo_auth_legacy ? XMPP_CONN_FLAG_LEGACY_AUTH : 0;
+	xmpp_conn_set_flags(ctx->c_conn, xmpp_flags);
+	xmpp_conn_set_jid(ctx->c_conn, opts->xo_jid);
+	if (opts->xo_passwd != NULL) {
+		xmpp_conn_set_pass(ctx->c_conn, opts->xo_passwd);
+	}
+	ctx->c_host        = opts->xo_host;
+	ctx->c_port        = opts->xo_port;
+	ctx->c_attempts    = 0;
+	ctx->c_is_raw      = opts->xo_raw_mode;
+	ctx->c_tls_disable = opts->xo_tls_disable;
+	ctx->c_tls_legacy  = opts->xo_tls_legacy;
+}
+
+int xc_connect(struct xc_ctx *ctx, struct xc_options *opts, bool reconnect)
 {
 	int rc;
 
+	if (opts != NULL) {
+		if (ctx->c_conn != NULL)
+			xmpp_conn_release(ctx->c_conn);
+		ctx->c_conn = xmpp_conn_new(ctx->c_ctx);
+		assert(ctx->c_conn != NULL);
+		xc_configure(ctx, opts);
+	}
+
+	assert(ctx->c_conn != NULL);
+
 	rc = ctx->c_is_raw ?
-		xmpp_connect_raw(conn, ctx->c_host, ctx->c_port,
+		xmpp_connect_raw(ctx->c_conn, ctx->c_host, ctx->c_port,
 				 xc_conn_handler, ctx) :
-		xmpp_connect_client(conn, ctx->c_host, ctx->c_port,
+		xmpp_connect_client(ctx->c_conn, ctx->c_host, ctx->c_port,
 				    xc_conn_handler, ctx);
 	if (rc == XMPP_EOK)
 		xc_ui_connecting(ctx->c_ui);
+	else if (reconnect) {
+		xmpp_global_timed_handler_add(ctx->c_ctx, xc_reconnect_cb,
+					      XC_RECONNECT_TIMER, ctx);
+	}
 
-	return rc == XMPP_EOK ? 0 : -1;
-}
-
-static int xc_reconnect_cb(xmpp_ctx_t *xmpp_ctx, void *userdata)
-{
-	struct xc_ctx *ctx = userdata;
-	int            rc;
-
-	rc = xc_connect(ctx->c_conn, ctx);
-
-	/* Don't remove timed handler if connection fails, reconnect later */
-	return rc == 0 ? 0 : 1;
+	return (rc == XMPP_EOK || reconnect) ? 0 : -1;
 }
 
 static bool should_display(const char *msg)
@@ -368,7 +403,7 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 			break;
 		switch (c) {
 		case 'h':
-			opts->xo_host = optarg;
+			opts->xo_host = strdup(optarg);
 			break;
 		case 'n':
 			opts->xo_raw_mode = true;
@@ -426,9 +461,9 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 	if (arg_nr < 1 || arg_nr > 2)
 		return false;
 
-	opts->xo_jid = argv[optind];
+	opts->xo_jid = strdup(argv[optind]);
 	if (arg_nr > 1)
-		opts->xo_passwd = argv[optind + 1];
+		opts->xo_passwd = strdup(argv[optind + 1]);
 
 	/* Parse UI string */
 	opts->xo_ui_type = xc_ui_name_to_type(opts->xo_ui);
@@ -440,6 +475,16 @@ static bool xc_options_parse(int argc, char **argv, struct xc_options *opts)
 	}
 
 	return true;
+}
+
+static void xc_options_fini(struct xc_options *opts)
+{
+	free(opts->xo_jid);
+	free(opts->xo_host);
+	if (opts->xo_passwd != NULL) {
+		memset(opts->xo_passwd, 0, strlen(opts->xo_passwd));
+		free(opts->xo_passwd);
+	}
 }
 
 /* Global pointer for signal handler. */
@@ -460,10 +505,6 @@ int main(int argc, char **argv)
 	struct xc_ui      ui;
 	struct xc_ctx     ctx;
 	xmpp_log_t        log;
-	xmpp_ctx_t       *xmpp_ctx;
-	xmpp_conn_t      *xmpp_conn;
-	char             *passwd;
-	long              xmpp_flags;
 	bool              result;
 	int               rc;
 
@@ -492,52 +533,23 @@ int main(int argc, char **argv)
 		.userdata = &ctx,
 	};
 	xmpp_initialize();
-	xmpp_ctx = xmpp_ctx_new(NULL, &log);
-	assert(xmpp_ctx != NULL);
-	xmpp_conn = xmpp_conn_new(xmpp_ctx);
-	assert(xmpp_conn != NULL);
+	ctx.c_ctx = xmpp_ctx_new(NULL, &log);
+	assert(ctx.c_ctx != NULL);
 
 	/* Check password. */
 	if (opts.xo_passwd == NULL) {
-		char *node = xmpp_jid_node(xmpp_ctx, opts.xo_jid);
+		char *node = xmpp_jid_node(ctx.c_ctx, opts.xo_jid);
 
-		passwd = NULL;
 		if (node != NULL && !opts.xo_raw_mode) {
-			(void)xc_ui_get_passwd(&ui, &passwd);
-			xmpp_free(xmpp_ctx, node);
+			(void)xc_ui_get_passwd(&ui, &opts.xo_passwd);
+			xmpp_free(ctx.c_ctx, node);
 		}
-	} else {
-		passwd = strdup(opts.xo_passwd);
 	}
 
-	xmpp_flags = opts.xo_tls_disable ?  XMPP_CONN_FLAG_DISABLE_TLS :
-		     opts.xo_tls_trust ?    XMPP_CONN_FLAG_TRUST_TLS :
-					    XMPP_CONN_FLAG_MANDATORY_TLS;
-	xmpp_flags |= opts.xo_tls_legacy ?  XMPP_CONN_FLAG_LEGACY_SSL : 0;
-	xmpp_flags |= opts.xo_auth_legacy ? XMPP_CONN_FLAG_LEGACY_AUTH : 0;
-	xmpp_conn_set_flags(xmpp_conn, xmpp_flags);
-	xmpp_conn_set_jid(xmpp_conn, opts.xo_jid);
-	if (passwd != NULL) {
-		xmpp_conn_set_pass(xmpp_conn, passwd);
-		memset(passwd, 0, strlen(passwd));
-		free(passwd);
-	}
-	ctx.c_host        = opts.xo_host;
-	ctx.c_port        = opts.xo_port;
-	ctx.c_ctx         = xmpp_ctx;
-	ctx.c_conn        = xmpp_conn;
-	ctx.c_attempts    = 0;
-	ctx.c_is_raw      = opts.xo_raw_mode;
-	ctx.c_tls_disable = opts.xo_tls_disable;
-	ctx.c_tls_legacy  = opts.xo_tls_legacy;
-	ctx.c_ui          = &ui;
-
+	ctx.c_ui = &ui;
 	xc_ui_ctx_set(&ui, &ctx);
-	rc = xc_connect(xmpp_conn, &ctx);
-	if (rc != 0) {
-		xmpp_global_timed_handler_add(xmpp_ctx, xc_reconnect_cb,
-					      XC_RECONNECT_TIMER, &ctx);
-	}
+	rc = xc_connect(&ctx, &opts, true);
+	assert(rc == 0);
 
 	g_ctx = &ctx;
 	rc = sigaction(SIGTERM, &xc_sigaction, NULL)
@@ -549,11 +561,12 @@ int main(int argc, char **argv)
 	/* Run main event loops */
 	xc_ui_run(&ui);
 
-	xmpp_conn_release(xmpp_conn);
-	xmpp_ctx_free(xmpp_ctx);
+	xmpp_conn_release(ctx.c_conn);
+	xmpp_ctx_free(ctx.c_ctx);
 	xmpp_shutdown();
 
 	xc_ui_fini(&ui);
+	xc_options_fini(&opts);
 
 	return 0;
 }
