@@ -302,6 +302,8 @@ static void ui_ncurses_redisplay_cb(void)
 	} else if (pos - priv->win_inp_offset >= COLS - 1 &&
 		   width - priv->win_inp_offset >= COLS) {
 		priv->win_inp_offset += COLS / 2;
+		if (pos - priv->win_inp_offset >= COLS)
+			priv->win_inp_offset = pos - COLS + 1;
 	}
 
 	werase(priv->win_inp);
